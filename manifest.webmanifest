@@ -1,0 +1,17 @@
+{
+  "name": "Ciruquis",
+  "short_name": "Ciruquis",
+  "description": "La bugambilia de Teté: racha, monedas, lecciones y avisos para cuidarla.",
+  "lang": "es-PE",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#6B1D4F",
+  "theme_color": "#6B1D4F",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

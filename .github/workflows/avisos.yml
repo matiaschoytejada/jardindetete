@@ -1,0 +1,47 @@
+name: Avisos de Ciruquis
+
+on:
+  schedule:
+    - cron: "0 0 * * *"    # 7:00 p. m. en Lima: aviso de la tarde
+    - cron: "30 13 * * *"  # 8:30 a. m. en Lima: solo si necesita rescate
+  workflow_dispatch:
+    inputs:
+      modo:
+        description: "Qué aviso correr"
+        type: choice
+        default: prueba
+        options: [prueba, tarde, manana]
+
+permissions:
+  contents: write
+
+jobs:
+  avisar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --omit=dev --no-audit --no-fund
+        working-directory: notify
+      - run: node notify/index.mjs
+        env:
+          TZ: America/Lima
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          APP_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+          MODE: ${{ inputs.modo || (github.event.schedule == '30 13 * * *' && 'manana' || 'tarde') }}
+      # GitHub pausa las tareas programadas tras 60 días sin cambios en el repo.
+      # Un latido mensual las mantiene vivas.
+      - name: Latido mensual
+        if: github.event_name == 'schedule' && github.event.schedule == '0 0 * * *'
+        env:
+          TZ: America/Lima
+        run: |
+          if [ "$(date +%d)" = "01" ]; then
+            date -Iseconds > notify/latido.txt
+            git config user.name "Ciruquis"
+            git config user.email "ciruquis@users.noreply.github.com"
+            git add notify/latido.txt
+            git commit -m "Latido mensual de Ciruquis" && git push
+          fi
