@@ -26,7 +26,7 @@ self.addEventListener("fetch", e => {
     fetch(req, propio ? { cache: "no-cache" } : undefined).then(res => {
       if (res.ok) { const copia = res.clone(); caches.open(CACHE).then(c => c.put(req, copia)); }
       return res;
-    }).catch(() => caches.match(req).then(r => r || caches.match(BASE + "index.html")))
+    }).catch(() => caches.match(req, { ignoreSearch: true }).then(r => r || caches.match(BASE + "index.html")))
   );
 });
 
