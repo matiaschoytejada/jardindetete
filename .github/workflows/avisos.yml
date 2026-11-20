@@ -1,9 +1,13 @@
 name: Avisos de Ciruquis
 
+# Horas en UTC; Lima es UTC-5. Cada turno se programa 10 minutos antes
+# porque GitHub suele atrasar las tareas programadas.
 on:
   schedule:
-    - cron: "0 0 * * *"    # 7:00 p. m. en Lima: aviso de la tarde
-    - cron: "30 13 * * *"  # 8:30 a. m. en Lima: solo si necesita rescate
+    - cron: "50 16 * * *"  # 12:00 p. m. Lima (riego viernes a domingo)
+    - cron: "50 21 * * *"  # 5:00 p. m. Lima (riego viernes a domingo)
+    - cron: "50 23 * * *"  # 7:00 p. m. Lima (riego lunes a jueves + recordatorios del día)
+    - cron: "50 0 * * *"   # 8:00 p. m. Lima (último recordatorio de riego, todos los días)
     - cron: "*/15 * * * *" # cada 15 minutos: mensajitos nuevos
   workflow_dispatch:
     inputs:
@@ -11,7 +15,12 @@ on:
         description: "Qué aviso correr"
         type: choice
         default: prueba
-        options: [prueba, tarde, manana, mensajes]
+        options: [prueba, recordatorio, mensajes]
+      turno:
+        description: "Turno (hora de Lima) para modo recordatorio"
+        type: choice
+        default: "19"
+        options: ["12", "17", "19", "20"]
 
 permissions:
   contents: write
@@ -35,11 +44,12 @@ jobs:
           TZ: America/Lima
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           APP_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
-          MODE: ${{ inputs.modo || (github.event.schedule == '*/15 * * * *' && 'mensajes') || (github.event.schedule == '30 13 * * *' && 'manana') || 'tarde' }}
+          MODE: ${{ inputs.modo || (github.event.schedule == '*/15 * * * *' && 'mensajes') || 'recordatorio' }}
+          SLOT: ${{ inputs.turno || (github.event.schedule == '50 16 * * *' && '12') || (github.event.schedule == '50 21 * * *' && '17') || (github.event.schedule == '50 0 * * *' && '20') || '19' }}
       # GitHub pausa las tareas programadas tras 60 días sin cambios en el repo.
       # Un latido mensual las mantiene vivas.
       - name: Latido mensual
-        if: github.event_name == 'schedule' && github.event.schedule == '0 0 * * *'
+        if: github.event_name == 'schedule' && github.event.schedule == '50 23 * * *'
         env:
           TZ: America/Lima
         run: |

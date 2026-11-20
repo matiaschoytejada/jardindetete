@@ -13,7 +13,7 @@ const daysBetween = (a,b) => Math.round((day(b)-day(a))/86400000);
 const MESES=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 
 /* ---------- estado ---------- */
-let db=null, miId=null, miEmail="", personas={}, plantas=[], entradas=[], compras=[], equipado=null, mensajes=[];
+let db=null, miId=null, miEmail="", personas={}, plantas=[], entradas=[], compras=[], equipado=null, mensajes=[], fotos=[];
 let sel = LS.get("planta","ciruquis"), tab="inicio", cargado=false, puedeEscribir=true, mostrar=12, filtro="todas";
 let R={cur:0,best:0,todayActive:false,freezesLeft:0,days:{}};
 let prev={level:-1,tiers:-1,streak:-1,coins:null};
@@ -376,6 +376,66 @@ function renderCarta(){
   r.disabled=false; h.disabled=false; c.append(fila(h,r)); box.append(c);
 }
 
+/* ---------- fotos de seguimiento ---------- */
+const fotosDe = id => fotos.filter(f=>(f.plantaId||"ciruquis")===id);
+let fotoPlanta=null;
+function tomarFoto(pid){ fotoPlanta=pid||sel; $("plantPhoto").click(); }
+function redimensionar(img,max,calidad){
+  const k=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight)), c=document.createElement("canvas");
+  c.width=Math.round(img.naturalWidth*k); c.height=Math.round(img.naturalHeight*k); c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+  let q=calidad, url=c.toDataURL("image/jpeg",q); while(url.length>850000&&q>.4){ q-=.1; url=c.toDataURL("image/jpeg",q); } return url;
+}
+$("plantPhoto").onchange=async e=>{
+  const f=e.target.files[0]; e.target.value=""; if(!f) return;
+  let img; try{ img=await new Promise((ok,ko)=>{ const i=new Image(); i.onload=()=>ok(i); i.onerror=ko; i.src=URL.createObjectURL(f); }); }catch(_){ toast("No se pudo abrir esa foto. Prueba con otra."); return; }
+  const full=redimensionar(img,1280,.8), thumb=redimensionar(img,360,.72), pl=plantas.find(p=>p.id===fotoPlanta)||planta();
+  abrirHoja(`Foto de ${pl.nombre}`, body=>{
+    const pv=el("img","foto-prev"); pv.src=full; pv.alt="";
+    const fN=el("div","field",`<label for="fotoNota">¿Algo que notaste?</label><input class="input" id="fotoNota" maxlength="140" placeholder="Por ejemplo: le salieron hojitas nuevas">`);
+    const g=boton("Guardar en su álbum","plum wide",async(ev,b)=>{ b.disabled=true;
+      try{
+        const ref=db.collection("fotos").doc(), fecha=new Date().toISOString(), nota=body.querySelector("#fotoNota").value.trim();
+        const bt=db.batch(); bt.set(ref,{plantaId:pl.id,quien:miId,fecha,thumb,nota}); bt.set(db.collection("fotosFull").doc(ref.id),{img:full}); await bt.commit();
+        const hoyYa=entradasDe(pl.id).some(x=>x.tipo==="foto"&&daysBetween(x.fecha,new Date())===0);
+        cerrarHoja();
+        if(!hoyYa) await guardar("foto",nota,{fotoId:ref.id},pl.id); else toast("Foto guardada en su álbum","ok");
+      }catch(err){ console.warn(err); toast("No se pudo guardar la foto. Revisa tu conexión."); b.disabled=false; }
+    });
+    body.append(pv,fN,g);
+  });
+};
+async function verFoto(f){
+  const pl=plantas.find(p=>p.id===(f.plantaId||"ciruquis"))||planta();
+  abrirHoja(pl.nombre, body=>{
+    const pv=el("img","foto-full"); pv.src=f.thumb; pv.alt=`Foto de ${pl.nombre}`;
+    const meta=el("div","foto-meta"); meta.innerHTML=`${f.quien&&personas[f.quien]?avatarHTML(personas[f.quien],24,false):""}<span></span>`; meta.lastChild.textContent=`${new Date(f.fecha).toLocaleDateString("es-PE",{weekday:"long",day:"numeric",month:"long"})} · ${nombreDe(f.quien)}`;
+    body.append(pv,meta);
+    if(f.nota){ const n=el("p","foto-nota"); n.textContent=f.nota; body.append(n); }
+    let full=f.thumb;
+    db.collection("fotosFull").doc(f.id).get().then(d=>{ if(d.exists&&d.data().img){ full=d.data().img; pv.src=full; } }).catch(()=>{});
+    const comp=boton("Compartir","plum",async()=>{
+      try{ const blob=await (await fetch(full)).blob(), file=new File([blob],`${pl.nombre}-${f.fecha.slice(0,10)}.jpg`,{type:"image/jpeg"});
+        if(navigator.canShare&&navigator.canShare({files:[file]})) await navigator.share({files:[file],title:`${pl.nombre}`,text:`¿Cómo ves a ${pl.nombre}? Foto del ${new Date(f.fecha).toLocaleDateString("es-PE")}`});
+        else { const a=document.createElement("a"); a.href=full; a.download=file.name; a.click(); toast("Foto descargada","ok"); }
+      }catch(err){ if(err&&err.name!=="AbortError") toast("No se pudo compartir la foto."); } });
+    comp.disabled=false; comp.innerHTML=ICON.compartir+" Compartir";
+    const del=boton("Borrar","alt",async(e,b)=>{ if(!b.dataset.sure){ b.dataset.sure="1"; b.textContent="¿Seguro?"; return; }
+      try{ const bt=db.batch(); bt.delete(db.collection("fotos").doc(f.id)); bt.delete(db.collection("fotosFull").doc(f.id)); await bt.commit(); cerrarHoja(); toast("Foto borrada","ok"); }catch(_){ toast("No se pudo borrar."); } });
+    body.append(fila(del,comp));
+    const tip=el("p","sec-desc"); tip.style.margin="0"; tip.textContent="Para que Claude te diga cómo va, compártela en el chat del proyecto Nuestra Casita."; body.append(tip);
+  });
+}
+function renderFotos(){
+  const p=planta(), lista=fotosDe(p.id), box=$("fotos"); box.innerHTML="";
+  $("fotosTitle").textContent=`Fotos de ${p.nombre}`; $("fotosCount").textContent=lista.length?`${lista.length} foto${lista.length===1?"":"s"}`:"";
+  const add=el("button","fadd"); add.type="button"; add.innerHTML=`${ICON.foto}<span>Tomar foto</span>`; add.onclick=()=>{ vibrar(); tomarFoto(p.id); }; box.append(add);
+  lista.forEach(f=>{ const t=el("button","fthumb"); t.type="button"; t.innerHTML=`<img alt="" src="${f.thumb}"><span>${new Date(f.fecha).toLocaleDateString("es-PE",{day:"numeric",month:"short"})}</span>`; t.onclick=()=>{ vibrar(); verFoto(f); }; box.append(t); });
+  const ay=$("antesAhora"); ay.innerHTML=""; ay.hidden=lista.length<2;
+  if(lista.length>=2){ const a=lista[lista.length-1], b=lista[0], dias=daysBetween(a.fecha,b.fecha);
+    ay.innerHTML=`<div class="aa-h"><b>Antes y ahora</b><span>${dias} día${dias===1?"":"s"} de diferencia</span></div><div class="aa"><figure><img alt="Antes" src="${a.thumb}"><figcaption>${new Date(a.fecha).toLocaleDateString("es-PE",{day:"numeric",month:"short"})}</figcaption></figure><figure><img alt="Ahora" src="${b.thumb}"><figcaption>${new Date(b.fecha).toLocaleDateString("es-PE",{day:"numeric",month:"short"})}</figcaption></figure></div>`;
+    ay.querySelectorAll("figure").forEach((fg,i)=>fg.onclick=()=>verFoto(i?b:a)); }
+}
+
 /* ---------- práctica y juego ---------- */
 const deHoy = (tipo) => misAprend().filter(e=>e.tipo===tipo&&daysBetween(e.fecha,new Date())===0);
 const MAX_PRACTICA=3, MAX_JUEGO=2;
@@ -528,6 +588,12 @@ function renderInicio(){
     const c=card({icon:"revision",cls:st.mood==="sed"?"":"pink",title:"Prueba del dedo",sub:"Mete el dedo hasta pasar la primera articulación (3–4 cm). ¿Cómo está la tierra?",tag:st.mood==="sed"?"+5 / +10":"¡Urgente!",tagCls:st.mood==="sed"?"coin":"due"});
     c.append(fila(boton("Seca: la regué","",()=>guardar("riego","")),boton("Aún húmeda","alt",()=>guardar("revision","humeda"))));
     add(c,false);
+  }
+  const uf=fotosDe(p.id)[0], df=uf?daysBetween(uf.fecha,hoy):null, ef=hoyDe(e=>e.tipo==="foto");
+  if(ef) add(card({icon:"foto",title:"Foto de seguimiento",sub:`Tomada ${porQuien(ef)}. Mírala en su álbum.`,done:true,who:ef.quien}),true);
+  else if(df===null||df>=7){
+    const c=card({icon:"foto",cls:"pink",title:"Foto de seguimiento",sub:df===null?`Toma la primera foto de ${p.nombre} para ver cómo cambia.`:`Hace ${df} días de la última. Una foto por semana muestra su avance.`,tag:"+5",tagCls:"coin"});
+    c.append(fila(boton("Tomar foto","pink",()=>tomarFoto(p.id)))); add(c,false);
   }
   const lp=entradasDe(p.id).find(e=>e.tipo==="plagas"), dp=lp?daysBetween(lp.fecha,hoy):null;
   if(dp===0) add(card({icon:"plagas",title:"Patrulla de plagas",sub:`Revisada ${porQuien(lp)}. Próxima en 2 semanas.`,done:true,who:lp.quien}),true);
@@ -793,7 +859,7 @@ function render(){
   if(!plantas.find(p=>p.id===sel) && plantas[0]){ sel=plantas[0].id; LS.set("planta",sel); ciruquisMontada=false; }
   calcularRachas();
   const p=planta(), lv=nivelDe(p), tiers=BADGES_F.reduce((s,b)=>s+tierDe(b).t,0)+BADGES_P.reduce((s,b)=>s+tierDe(b).t,0);
-  renderHeader(); renderInicio(); renderAprender(); renderMas(); renderPremios(); renderDiario(); renderPerfil(); renderCarta(); pintarChat();
+  renderHeader(); renderInicio(); renderFotos(); renderAprender(); renderMas(); renderPremios(); renderDiario(); renderPerfil(); renderCarta(); pintarChat();
   if(cargado){
     if(prev.level>=0 && lv.i>prev.level){ toast(`¡Subió de nivel! ${p.nombre} ahora es ${lv.name}`,"ok"); confeti(40); $("buga").classList.add("pop-b"); }
     else if(prev.tiers>=0 && tiers>prev.tiers) setTimeout(()=>{ toast("¡Nueva medalla! Mírala en Premios","ok"); monedasFx(); },900);
@@ -823,7 +889,7 @@ async function guardar(tipo,nota,extra={},plantaId){
   if(!db) return;
   const pid=plantaId||sel, pl=plantas.find(p=>p.id===pid)||planta();
   const e={tipo,nota:nota||"",fecha:new Date().toISOString(),quien:miId||null,plantaId:pid,...extra};
-  const gracias={dato:"Nuevo dato en tu álbum",riego:`¡Glu glu! ${pl.nombre} te lo agradece`,revision:"Anotado: tierra húmeda, sin regar",plagas:"Patrulla completada",abono:`¡Vitaminas para ${pl.nombre}!`,brotes:"¡Qué emoción, brotes nuevos!",leccion:"Lección completada",poda:"Poda anotada"};
+  const gracias={foto:"Foto guardada en su álbum",dato:"Nuevo dato en tu álbum",riego:`¡Glu glu! ${pl.nombre} te lo agradece`,revision:"Anotado: tierra húmeda, sin regar",plagas:"Patrulla completada",abono:`¡Vitaminas para ${pl.nombre}!`,brotes:"¡Qué emoción, brotes nuevos!",leccion:"Lección completada",poda:"Poda anotada"};
   try{
     vibrar([15,30,15]);
     await db.collection("registro").add(e);
@@ -882,7 +948,7 @@ const auth=firebase.auth();
 db=firebase.firestore();
 db.enablePersistence({synchronizeTabs:true}).catch(()=>{});
 try{ if(firebase.messaging.isSupported()) messaging=firebase.messaging(); }catch(_){ messaging=null; }
-const VERSION="2026.11.20 · v8";
+const VERSION="2026.11.20 · v9";
 if("serviceWorker" in navigator){
   const habia=!!navigator.serviceWorker.controller; let recargado=false;
   navigator.serviceWorker.addEventListener("controllerchange",()=>{ if(habia&&!recargado){ recargado=true; location.reload(); } });
@@ -925,6 +991,7 @@ auth.onAuthStateChanged(async u=>{
   db.collection("plantas").onSnapshot(s=>{ plantas=s.docs.map(d=>({id:d.id,...d.data()})).filter(p=>!p.archivada).sort((a,b)=>(a.orden??0)-(b.orden??0)); marcar("pl"); if(cargado) render(); });
   db.collection("registro").orderBy("fecha","desc").limit(800).onSnapshot(s=>{ entradas=s.docs.map(d=>({id:d.id,...d.data()})); marcar("r"); if(cargado) render(); },()=>toast("Se perdió la conexión. Revisa tu internet."));
   db.collection("compras").onSnapshot(s=>{ compras=s.docs.map(d=>({id:d.id,...d.data()})); marcar("c"); if(cargado) render(); },()=>marcar("c"));
+  db.collection("fotos").orderBy("fecha","desc").limit(80).onSnapshot(s=>{ fotos=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.fecha.localeCompare(a.fecha)); if(cargado) renderFotos(); },()=>{});
   let msgVistos=null;
   db.collection("mensajes").orderBy("fecha","desc").limit(200).onSnapshot(s=>{ mensajes=s.docs.map(d=>({id:d.id,...d.data()}));
     const nuevos=new Set(sinLeer().map(m=>m.id)); if(msgVistos&&[...nuevos].some(id=>!msgVistos.has(id))){ toast(`💌 Nuevo mensajito de ${nombreDe(sinLeer()[0].de)}`,"info"); vibrar([20,40,20]); }

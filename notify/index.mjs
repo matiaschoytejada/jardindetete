@@ -2,7 +2,7 @@
 // Corre en GitHub Actions con TZ=America/Lima.
 import admin from "firebase-admin";
 
-const MODO = process.env.MODE || "tarde";          // tarde | manana | prueba
+const MODO = process.env.MODE || "recordatorio";   // recordatorio | mensajes | prueba
 const APP = process.env.APP_URL || "/";
 admin.initializeApp({ credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)) });
 const db = admin.firestore();
@@ -60,7 +60,7 @@ const estados = plantas.map(p => {
   return { p, max, sinAgua, animo, aguaHoy, plagasToca: !ultPlagas || entre(ultPlagas.fecha, hoy) >= 14 };
 }).sort((a, b) => ORDEN[b.animo] - ORDEN[a.animo] || b.sinAgua - a.sinAgua);
 const peor = estados.find(s => !s.aguaHoy) || estados[0];
-const CUIDADO = ["riego", "revision", "plagas", "abono", "poda", "brotes"];
+const CUIDADO = ["riego", "revision", "plagas", "abono", "poda", "brotes", "foto"];
 const cuid = reg.filter(e => CUIDADO.includes(e.tipo));
 const activoHoy = cuid.some(e => entre(e.fecha, hoy) === 0);
 
@@ -77,26 +77,37 @@ function racha(lista, prot) {
   }
   return s;
 }
-const aprendeDe = uid => reg.filter(e => (e.tipo === "leccion" || e.tipo === "dato") && e.quien === uid);
+const aprendeDe = uid => reg.filter(e => ["leccion", "dato", "practica", "juego"].includes(e.tipo) && e.quien === uid);
 const rachaA = uid => racha(aprendeDe(uid), compras.filter(c => c.item === "protector-aprendizaje" && c.quien === uid));
 const r = racha(cuid, compras.filter(c => c.item === "protector"));
 const plagasDomingo = hoy.getDay() === 0 && estados.some(s => s.plagasToca);
 const sinAguaTxt = n => n >= 99 ? "mucho tiempo" : `${n} días`;
 
+// Horarios de riego (hora de Lima): lunes a jueves 7 y 8 p. m.; viernes a domingo 12, 5 y 8 p. m.
+// SLOT es la hora del turno programado (no la real, porque GitHub puede atrasarse).
+const SLOT = Number(process.env.SLOT || 19);
+const dow = hoy.getDay();                       // 0 domingo … 6 sábado, en hora de Lima
+const finde = dow === 5 || dow === 6 || dow === 0;
+const turnosRiego = finde ? [12, 17, 20] : [19, 20];
+const tocaRiego = !peor.aguaHoy && peor.animo !== "feliz";
+
+function avisoRiego(c) {
+  const n = peor.p.nombre, ella = n === "Ciruquis", urgente = peor.animo !== "sed";
+  const primero = SLOT === turnosRiego[0], ultimo = SLOT === 20;
+  if (ultimo) return { title: ella ? `Último recordatorio: sigo esperando mi agüita 🥺` : `Último recordatorio: ${n} espera su agüita 🥺`, body: `Antes de dormir, una revisadita a la tierra, ${c}.`, tag: "agua" };
+  if (primero) return urgente
+    ? { title: ella ? `${c}, ¡tengo sed! 💧` : `${c}, ${n} tiene sed 💧`, body: `${sinAguaTxt(peor.sinAgua)} sin agüita. Prueba del dedo y, si está seca, a regar.`, tag: "agua" }
+    : { title: ella ? `${c}, hoy me toca agüita 💧` : `Hoy toca regar a ${n} 💧`, body: "Prueba del dedo: si la tierra está seca a 3–4 cm, a regar.", tag: "agua" };
+  return { title: ella ? `¿Ya me hiciste la prueba del dedo? 👆` : `¿Ya le hiciste la prueba del dedo a ${n}? 👆`, body: "Sigue pendiente la agüita de hoy.", tag: "agua" };
+}
+
 // arma el aviso con el apodo de quien lo recibe
 function aviso(c, uid) {
-  const n = peor.p.nombre, yo = n === "Ciruquis" ? "Ciruquis" : n;
   if (MODO === "prueba") return { title: `¡Hola, ${c}! Soy Ciruquis 💜`, body: "Así te voy a avisar cuando el jardín te necesite.", tag: "prueba" };
-  if (MODO === "manana") {
-    if (peor.animo === "rescate" && !peor.aguaHoy) return { title: `Buenos días, ${c}… ¡${yo} necesita rescate! 🥀`, body: `Lleva ${sinAguaTxt(peor.sinAgua)} sin agüita. Antes de irte, ¿le revisas la tierra?`, tag: "agua" };
-    return null;
-  }
-  if (!peor.aguaHoy && (peor.animo === "agua" || peor.animo === "rescate"))
-    return { title: n === "Ciruquis" ? `${c}, ¡tengo sed! 💧` : `${c}, ${n} tiene sed 💧`, body: `${sinAguaTxt(peor.sinAgua)} sin agüita. Prueba del dedo y, si está seca, a regar.`, tag: "agua" };
-  if (!activoHoy && peor.animo === "sed")
-    return { title: n === "Ciruquis" ? `${c}, ya me va dando sed…` : `${c}, a ${n} ya le va dando sed…`, body: "Hazle la prueba del dedo hoy, porfa. Tu racha también te lo agradece.", tag: "agua" };
+  if (tocaRiego && turnosRiego.includes(SLOT)) return avisoRiego(c);
+  if (SLOT !== 19) return null;                 // los demás recordatorios salen una vez al día, a las 7 p. m.
   if (!activoHoy && r > 0)
-    return { title: `¡Tu racha de ${r} día${r === 1 ? "" : "s"} está en peligro! 🔥`, body: plagasDomingo ? `Hoy toca patrulla de plagas. Con eso la salvas, ${c}.` : `Una lección o el dato curioso de hoy la salvan, ${c}.`, tag: "racha" };
+    return { title: `¡La racha del jardín (${r} día${r === 1 ? "" : "s"}) está en peligro! 🔥`, body: plagasDomingo ? `Hoy toca patrulla de plagas. Con eso la salvan, ${c}.` : `Un cuidado de cualquiera de los dos la salva, ${c}.`, tag: "racha" };
   const aprendioHoy = aprendeDe(uid).some(e => entre(e.fecha, hoy) === 0), ra = rachaA(uid);
   if (!aprendioHoy && ra > 0)
     return { title: `Tu racha de aprendizaje: ${ra} día${ra === 1 ? "" : "s"} 📚`, body: `No la pierdas, ${c}. La lección de hoy toma un minuto.`, tag: "aprende" };
@@ -108,7 +119,7 @@ function aviso(c, uid) {
 }
 const apodoDe = uid => { const p = personas[uid] || {}; return (p.apodo || "").trim() || (p.nombre || "").split(" ")[0] || ""; };
 
-console.log({ MODO, temporada: temp.k, plantas: estados.map(e => `${e.p.nombre}:${e.animo}(${e.sinAgua}d)`), activoHoy, rachaJardin: r });
+console.log({ MODO, SLOT, dia: dow, turnosRiego, tocaRiego, temporada: temp.k, plantas: estados.map(e => `${e.p.nombre}:${e.animo}(${e.sinAgua}d)`), activoHoy, rachaJardin: r });
 
 const toks = await db.collection("tokens").get();
 if (toks.empty) { console.log("No hay celulares registrados todavía."); process.exit(0); }

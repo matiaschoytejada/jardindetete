@@ -14,16 +14,16 @@ const ICON = {
   candado:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 10V7a5 5 0 0 1 10 0v3h1v11H6V10zm2 0h6V7a3 3 0 0 0-6 0z"/></svg>',
   nota:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 4h14v16H5zM8 9h8M8 13h8M8 17h5"/></svg>'
 };
-const TXT = {riego:"Riego",revision:"Prueba del dedo",abono:"Abono",plagas:"Patrulla de plagas",poda:"Poda",leccion:"Lección",brotes:"Brotes nuevos",dato:"Dato curioso",practica:"Práctica",juego:"Memoria del jardín",nota:"Nota"};
+const TXT = {riego:"Riego",revision:"Prueba del dedo",abono:"Abono",plagas:"Patrulla de plagas",poda:"Poda",leccion:"Lección",brotes:"Brotes nuevos",dato:"Dato curioso",practica:"Práctica",juego:"Memoria del jardín",foto:"Foto de seguimiento",nota:"Nota"};
 const LEVELS = [[0,"Semilla"],[30,"Brote"],[80,"Plantita"],[160,"Arbusto"],[300,"Floración"],[500,"Abuelita sabia"],[800,"Reina del balcón"]];
 /* puntos (nivel) y monedas (tienda) por tipo de cuidado */
 const PTS = e => ({riego:10,revision:5,abono:15,poda:15,plagas:10,brotes:10,nota:2,dato:3,leccion:e.ok===false?1:5})[e.tipo] ?? 0;
-const MON = e => (e.tipo==="practica"||e.tipo==="juego") ? (e.monedas||0) : (({riego:10,revision:5,abono:15,poda:12,plagas:8,brotes:10,dato:3,leccion:e.ok===false?1:5})[e.tipo] ?? 0);
+const MON = e => (e.tipo==="practica"||e.tipo==="juego") ? (e.monedas||0) : (({riego:10,revision:5,abono:15,poda:12,plagas:8,brotes:10,foto:5,dato:3,leccion:e.ok===false?1:5})[e.tipo] ?? 0);
 const HITOS = [[3,10],[7,25],[14,40],[30,100],[60,150],[100,300]];
 const TIER_MON = [15,30,60];
 
 /* Cuidado = familia; aprendizaje = cada persona */
-const CUIDADO = ["riego","revision","plagas","abono","poda","brotes"];
+const CUIDADO = ["riego","revision","plagas","abono","poda","brotes","foto"];
 const APRENDE = ["leccion","dato","practica","juego"];
 const HITOS_A = [[3,10],[7,20],[14,35],[30,80],[60,120]];
 /* c = {F: cuidados de todos, M: mis entradas, MC: mis cuidados, RF: racha familiar, RA: mi racha de aprendizaje} */
@@ -171,3 +171,8 @@ const PRACTICA_EXTRA = [
 ];
 const PRACTICA = () => LESSONS.concat(PRACTICA_EXTRA);
 const JUEGO_ESPECIES = ["bugambilia","suculenta","potus","sansevieria","orquidea","helecho"];
+
+Object.assign(ICON, {
+  foto:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8.5 4h7l1.6 2.2H20a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.2a2 2 0 0 1 2-2h2.9zM12 17.2a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9zm0-2a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>',
+  compartir:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>'
+});

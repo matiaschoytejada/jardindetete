@@ -15,7 +15,7 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="app.css?v=8">
+<link rel="stylesheet" href="app.css?v=9">
 </head>
 <body>
 
@@ -76,6 +76,10 @@
     <div class="sec-h"><h2>Misiones de hoy</h2><span class="sec-note" id="missionCount"></span></div>
     <div class="missions" id="missions"></div>
     <div id="learnLink"></div>
+
+    <div class="sec-h"><h2 id="fotosTitle">Fotos</h2><span class="sec-note" id="fotosCount"></span></div>
+    <div class="fotos" id="fotos"></div>
+    <div class="antes" id="antesAhora" hidden></div>
 
     <div class="sec-h"><h2 id="tipsTitle">Cómo cuidarla</h2></div>
     <ul class="tips" id="tips"></ul>
@@ -147,6 +151,7 @@
 </div>
 
 <input type="file" id="photoInput" accept="image/*" hidden>
+<input type="file" id="plantPhoto" accept="image/*" capture="environment" hidden>
 <div class="fx" id="fx"></div>
 <div class="toast" id="toast" role="status"></div>
 
@@ -221,9 +226,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
-<script src="config.js?v=8"></script>
-<script src="especies.js?v=8"></script>
-<script src="contenido.js?v=8"></script>
-<script src="app.js?v=8"></script>
+<script src="config.js?v=9"></script>
+<script src="especies.js?v=9"></script>
+<script src="contenido.js?v=9"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>
