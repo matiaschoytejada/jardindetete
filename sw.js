@@ -4,9 +4,9 @@ importScripts(
   "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js",
   "config.js"
 );
-const CACHE = "ciruquis-v2";
+const CACHE = "ciruquis-v3";
 const BASE = self.registration.scope;
-const SHELL = ["", "index.html", "app.js", "config.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/badge-96.png"];
+const SHELL = ["", "index.html", "app.css", "app.js", "contenido.js", "especies.js", "config.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/badge-96.png"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL.map(p => BASE + p))).then(() => self.skipWaiting()));

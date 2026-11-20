@@ -1,0 +1,102 @@
+/* Contenido del jardín: íconos, lecciones, datos curiosos, medallas y tienda. */
+const COIN_SVG='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="currentColor"/><circle cx="12" cy="12" r="6.5" fill="none" stroke="var(--surface)" stroke-width="1.6" opacity=".7"/></svg>';
+const ICON = {
+  riego:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2s7 7.6 7 12.5A7 7 0 0 1 5 14.5C5 9.6 12 2 12 2z"/></svg>',
+  revision:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 11V4.5a1.5 1.5 0 0 1 3 0V11m0-1V3.5a1.5 1.5 0 0 1 3 0V11m0-.5V6a1.5 1.5 0 0 1 3 0v8a7 7 0 0 1-12.5 4.3L3.6 15a1.6 1.6 0 0 1 2.5-2L9 15"/></svg>',
+  abono:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c0-6 1-10 7-13-1 6-3 10-7 13zm0 0C9 18 6 16 4 9c5 1 7 5 8 13z"/></svg>',
+  plagas:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg>',
+  poda:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.5 7.5L20 18M8.5 16.5L20 6"/></svg>',
+  leccion:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L1 9l11 6 9-4.9V17h2V9zM5 13.2v4L12 21l7-3.8v-4L12 17z"/></svg>',
+  brotes:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M11 21v-7C7 14 4 11 4 6c4 0 7 2 7 6 0-4 3-8 9-8 0 6-3 10-7 10v7z"/></svg>',
+  racha:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 4 5 5.5 5 11a5 5 0 0 1-10 0c0-2.4 1.2-3.8 2.3-5 .2 1.6 1 2.7 2.2 3C11 8 12.4 5.4 12 2z"/></svg>',
+  hielo:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 2v20M4 7l16 10M20 7L4 17M9 3.5l3 2.5 3-2.5M9 20.5l3-2.5 3 2.5"/></svg>',
+  dato:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2zM9 19h6v1.5a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 20.5z"/></svg>',
+  candado:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 10V7a5 5 0 0 1 10 0v3h1v11H6V10zm2 0h6V7a3 3 0 0 0-6 0z"/></svg>',
+  nota:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 4h14v16H5zM8 9h8M8 13h8M8 17h5"/></svg>'
+};
+const TXT = {riego:"Riego",revision:"Prueba del dedo",abono:"Abono",plagas:"Patrulla de plagas",poda:"Poda",leccion:"Lección",brotes:"Brotes nuevos",dato:"Dato curioso",nota:"Nota"};
+const LEVELS = [[0,"Semilla"],[30,"Brote"],[80,"Plantita"],[160,"Arbusto"],[300,"Floración"],[500,"Abuelita sabia"],[800,"Reina del balcón"]];
+/* puntos (nivel) y monedas (tienda) por tipo de cuidado */
+const PTS = e => ({riego:10,revision:5,abono:15,poda:15,plagas:10,brotes:10,nota:2,dato:3,leccion:e.ok===false?1:5})[e.tipo] ?? 0;
+const MON = e => ({riego:10,revision:5,abono:15,poda:12,plagas:8,brotes:10,dato:3,leccion:e.ok===false?1:5})[e.tipo] ?? 0;
+const HITOS = [[3,10],[7,25],[14,40],[30,100],[60,150],[100,300]];
+const TIER_MON = [15,30,60];
+
+const BADGES = [
+  {k:"riego", name:"Regadora", t:[3,10,30], icon:"riego", count:E=>E.filter(e=>e.tipo==="riego").length},
+  {k:"revision", name:"Dedito verde", t:[3,10,25], icon:"revision", count:E=>E.filter(e=>e.tipo==="revision"||e.tipo==="riego").length},
+  {k:"plagas", name:"Detective de plagas", t:[2,6,15], icon:"plagas", count:E=>E.filter(e=>e.tipo==="plagas").length},
+  {k:"abono", name:"Chef de Ciruquis", t:[1,5,12], icon:"abono", count:E=>E.filter(e=>e.tipo==="abono").length},
+  {k:"poda", name:"Tijeras de oro", t:[1,3,8], icon:"poda", count:E=>E.filter(e=>e.tipo==="poda").length},
+  {k:"leccion", name:"Sabia como Ciruquis", t:[3,10,30], icon:"leccion", count:E=>E.filter(e=>e.tipo==="leccion"&&e.ok!==false).length},
+  {k:"dato", name:"Coleccionista curiosa", t:[5,12,16], icon:"dato", count:E=>new Set(E.filter(e=>e.tipo==="dato").map(e=>e.nota)).size},
+  {k:"racha", name:"Llama eterna", t:[7,30,100], icon:"racha", count:()=>R.best}
+];
+
+const SHOP = [
+  {id:"protector", name:"Protector de racha", price:30, desc:"Salva la racha si un día no entran. Máximo 2.", consumible:true,
+   svg:'<svg viewBox="0 0 40 40"><path d="M20 3l14 5v10c0 9-6 15-14 19C12 33 6 27 6 18V8z" fill="var(--ice-soft)" stroke="var(--ice)" stroke-width="2.5"/><path d="M20 11c.8 3 4 4 4 8a4 4 0 0 1-8 0c0-2 1-3 1.8-4 .2 1.2.8 2 1.8 2.3C19 14.5 20.3 13 20 11z" fill="var(--ice)"/></svg>'},
+  {id:"rosada", name:"Chompa rosada", price:40, desc:"Tejida con lana rosada, como las que hacía para la familia.", grupo:"color",
+   svg:'<svg viewBox="0 0 40 40"><path d="M14 6h12l10 6-4 8-4-2v18H12V18l-4 2-4-8z" fill="#E58AB3"/><path d="M15 6q5 5 10 0" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="2"/></svg>'},
+  {id:"verde", name:"Chompa verde", price:50, desc:"Verde hoja, para combinar con sus ramas.", grupo:"color",
+   svg:'<svg viewBox="0 0 40 40"><path d="M14 6h12l10 6-4 8-4-2v18H12V18l-4 2-4-8z" fill="#4E8A5F"/><path d="M15 6q5 5 10 0" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="2"/></svg>'},
+  {id:"rayas", name:"Rayas tejidas", price:80, desc:"Le teje rayas amarillas a la chompa que tenga puesta.",
+   svg:'<svg viewBox="0 0 40 40"><path d="M14 6h12l10 6-4 8-4-2v18H12V18l-4 2-4-8z" fill="#7A2457"/><path d="M15 6q5 5 10 0" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="2"/><path d="M12 24h16M12 30h16" stroke="#F2B33D" stroke-width="3"/></svg>'},
+  {id:"reloj", name:"Reloj despertador", price:60, desc:"Siempre atenta a la hora, como la abuelita. Marca la hora real.",
+   svg:'<svg viewBox="0 0 40 40"><circle cx="9" cy="8" r="4" fill="#7A2457"/><circle cx="31" cy="8" r="4" fill="#7A2457"/><circle cx="20" cy="22" r="14" fill="#fff" stroke="#7A2457" stroke-width="3"/><path d="M20 22V13M20 22l6 4" stroke="#16261C" stroke-width="2.4" stroke-linecap="round"/></svg>'},
+  {id:"mariposa", name:"Mariposa amiga", price:110, desc:"Le hace compañía revoloteando.",
+   svg:'<svg viewBox="0 0 40 40"><ellipse cx="13" cy="15" rx="9" ry="10" fill="var(--sun)"/><ellipse cx="27" cy="15" rx="9" ry="10" fill="var(--sun)"/><ellipse cx="14" cy="28" rx="6" ry="7" fill="var(--bract)"/><ellipse cx="26" cy="28" rx="6" ry="7" fill="var(--bract)"/><rect x="18.5" y="8" width="3" height="26" rx="1.5" fill="var(--ink)"/></svg>'},
+  {id:"regadera", name:"Regadera dorada", price:150, desc:"El trofeo de las mejores jardineras.",
+   svg:'<svg viewBox="0 0 40 40"><path d="M10 16h20l-2 20H12z" fill="var(--gold)" stroke="#9C7A00" stroke-width="1.5"/><path d="M10 20L2 10" stroke="#9C7A00" stroke-width="3.5" stroke-linecap="round"/><path d="M30 20q9 4 0 11" stroke="#9C7A00" stroke-width="2.5" fill="none"/></svg>'}
+];
+
+const LESSONS = [
+  {id:"bractea",q:"Lo fucsia que parece pétalo en la bugambilia es…",o:["Una bráctea, una hoja de color","La flor verdadera","Un fruto"],a:0,e:"Es una bráctea. La flor verdadera es la florecita blanca del centro."},
+  {id:"dedo",q:"¿Cuándo toca regar?",o:["Todos los días sin falta","Cuando la tierra está seca a 3–4 cm","Cuando ya se cayeron las hojas"],a:1,e:"Mete el dedo hasta pasar la primera articulación: si está seco, toca agua."},
+  {id:"plato",q:"Después de regar, el agua del plato…",o:["Se deja para que tome después","Se vacía en unos 10 minutos","Se le agrega más"],a:1,e:"El agua estancada pudre las raíces y atrae mosquitas y zancudos."},
+  {id:"sol",q:"¿Cuántas horas de sol directo necesita para florecer?",o:["1–2 horas","5–6 horas o más","Prefiere la sombra"],a:1,e:"Mientras más sol, más brácteas. En verano limeño se pone feliz."},
+  {id:"nudo",q:"Al podar, el corte se hace…",o:["En el centro de la rama","5 mm encima de un nudo, en diagonal","Al ras de la tierra"],a:1,e:"El nudo es donde nace una hoja: de ahí brota la rama nueva."},
+  {id:"tercio",q:"En una poda, como máximo se quita…",o:["Un tercio de la planta","La mitad","Todas las ramas largas"],a:0,e:"Más de un tercio la estresa demasiado."},
+  {id:"abono",q:"¿Qué abono le gusta más para florecer?",o:["Mucho nitrógeno","Más fósforo y potasio","Ninguno, nunca"],a:1,e:"Mucho nitrógeno da hojas y pocas flores. El de floración trae más fósforo y potasio."},
+  {id:"invierno",q:"En el invierno de Lima, la bugambilia…",o:["Necesita más agua","Se riega menos y no se abona","Hay que meterla adentro por la helada"],a:1,e:"Con la panza de burro bebe poco; cada 10–15 días basta. En Lima no hiela."},
+  {id:"hormigas",q:"Si ves hormigas subiendo por el tallo, revisa si hay…",o:["Pulgones o cochinillas","Demasiado sol","Raíces fuera de la maceta"],a:0,e:"Las hormigas cuidan a los pulgones por su jugo dulce. Se limpian con algodón y alcohol o jabón potásico."},
+  {id:"mascotas",q:"¿Qué producto es más seguro cerca de Popeye y Zoe?",o:["Cebo para hormigas","Insecticida en spray","Jabón potásico o aceite de neem"],a:2,e:"Son mucho más seguros. Aplícalos cuando ellos no estén cerca y deja secar."},
+  {id:"cristal",q:"¿Por qué conviene separar las ramas del vidrio?",o:["Porque el vidrio se raya","Porque el calor del vidrio quema las hojas","No importa"],a:1,e:"Así se quemó la rama de hojas negras que cortaron."},
+  {id:"bracteas-tierra",q:"Las brácteas caídas sobre la tierra…",o:["Se dejan como abono","Se recogen para evitar hongos y mosquitas","Se entierran"],a:1,e:"Con la humedad de Lima se pudren rápido."}
+];
+
+/* datos curiosos: cada planta trae los suyos; nuevas plantas se agregan aquí */
+const DATOS = [
+  {id:"nombre",t:"Se llama así por un explorador",x:"Su nombre homenajea a Louis Antoine de Bougainville, el navegante francés que dio la vuelta al mundo entre 1766 y 1769."},
+  {id:"baret",t:"Una mujer disfrazada la encontró",x:"En esa expedición viajaba Jeanne Baret, vestida de hombre para poder ir como asistente del botánico. Se le atribuye haber recolectado la bugambilia en Brasil, y fue la primera mujer en dar la vuelta al mundo."},
+  {id:"peru",t:"Es sudamericana, como nosotros",x:"Es nativa de Sudamérica. Hasta hay una especie llamada Bougainvillea peruviana, que crece silvestre en Perú y Ecuador."},
+  {id:"tres",t:"Todo viene de a tres",x:"Cada grupito tiene tres brácteas, y cada bráctea lleva pegada una florecita blanca. Por eso en Venezuela le dicen trinitaria."},
+  {id:"papel",t:"Flor de papel",x:"Sus brácteas son tan delgadas y secas al tacto que en varios países le dicen flor de papel o papelillo."},
+  {id:"flor",t:"La flor verdadera dura poquito",x:"La florecita blanca dura apenas unos días, pero las brácteas pueden quedarse coloridas varias semanas."},
+  {id:"polinizadores",t:"Sus colores son un anuncio",x:"Las brácteas de colores sirven para atraer colibríes, mariposas y abejas hacia las flores, que son pequeñas y difíciles de ver."},
+  {id:"espinas",t:"Las espinas son ganchos",x:"En la naturaleza es trepadora: usa sus espinas curvas para engancharse a árboles y muros y subir hacia el sol."},
+  {id:"altura",t:"Puede trepar muy alto",x:"Si la dejan crecer libre, puede pasar los 10 metros, cubriendo muros y techos enteros."},
+  {id:"sed",t:"Florece mejor con un poco de sed",x:"Viene de zonas con temporadas secas. Un poco de sequedad entre riegos le avisa que es buen momento para florecer."},
+  {id:"familia",t:"Su prima es la maravilla",x:"Pertenece a la misma familia que la maravilla o dondiego de noche (Nyctaginaceae), esa flor que abre al atardecer."},
+  {id:"colores",t:"Viene en muchos colores",x:"Hay bugambilias fucsias, moradas, rojas, naranjas, amarillas, blancas y hasta de dos colores en la misma planta."},
+  {id:"injerto",t:"Una sola planta, dos colores",x:"Los jardineros pueden injertar ramas de distintas variedades en un mismo tronco para tener varios colores juntos."},
+  {id:"longeva",t:"Puede vivir muchísimos años",x:"Bien cuidada, una bugambilia vive décadas. Hay ejemplares con troncos gruesos como árboles."},
+  {id:"bonsai",t:"También se hace bonsái",x:"Como aguanta bien la poda y el tronco se pone grueso y retorcido, es una de las plantas con flor favoritas para bonsái."},
+  {id:"lima",t:"Le encanta el clima de Lima",x:"Como en Lima no hiela, puede estar afuera todo el año. Por eso se ve tanto en muros, parques y balcones limeños."}
+];
+
+Object.assign(ICON, {
+  inicio:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l9 7.5V21h-6v-6H9v6H3V10.5z"/></svg>',
+  aprender:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L1 9l11 6 9-4.9V17h2V9zM5 13.2v4L12 21l7-3.8v-4L12 17z"/></svg>',
+  premios:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 3h12v2h3v3a5 5 0 0 1-4.5 5A6 6 0 0 1 13 16.9V19h4v2H7v-2h4v-2.1A6 6 0 0 1 7.5 13 5 5 0 0 1 3 8V5h3zm0 4H5v1a3 3 0 0 0 1.2 2.4C6.1 9.9 6 9.5 6 9zm12 0v2c0 .5-.1.9-.2 1.4A3 3 0 0 0 19 8V7z"/></svg>',
+  diario:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 2h11a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm2 5v2h8V7zm0 4v2h8v-2zm0 4v2h5v-2z"/></svg>',
+  perfil:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8" r="4.5"/><path d="M3 21c0-4.4 4-7 9-7s9 2.6 9 7z"/></svg>',
+  campana:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 22a2.5 2.5 0 0 0 2.4-2h-4.8a2.5 2.5 0 0 0 2.4 2zm7-6V11a7 7 0 0 0-5.5-6.8V3a1.5 1.5 0 0 0-3 0v1.2A7 7 0 0 0 5 11v5l-2 2v1h18v-1z"/></svg>',
+  instalar:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M12 7v7M9 11l3 3 3-3"/></svg>',
+  libro:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5"/></svg>',
+  salir:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h11"/></svg>',
+  corazon:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-8-5.2-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 5.8-8 11-8 11z"/></svg>',
+  calendario:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+  medalla:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 2h4l1 4 1-4h4l-3 7a6 6 0 1 1-4 0z"/></svg>',
+  maceta:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 11c0-4 2-7 7-7 0 4-2 7-7 7zm0 0C9 11 5 9 5 4c4 0 7 3 7 7zM5 12h14l-2 9H7z"/></svg>'
+});

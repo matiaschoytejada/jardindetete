@@ -1,606 +1,690 @@
+/* Jardín de Teté — lógica de la app.
+   Datos en Firestore: personas, plantas, registro, compras, ajustes, tokens. */
 const $ = id => document.getElementById(id);
-const COIN_SVG='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="currentColor"/><circle cx="12" cy="12" r="6.5" fill="none" stroke="var(--surface)" stroke-width="1.6" opacity=".7"/></svg>';
-const ICON = {
-  riego:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2s7 7.6 7 12.5A7 7 0 0 1 5 14.5C5 9.6 12 2 12 2z"/></svg>',
-  revision:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 11V4.5a1.5 1.5 0 0 1 3 0V11m0-1V3.5a1.5 1.5 0 0 1 3 0V11m0-.5V6a1.5 1.5 0 0 1 3 0v8a7 7 0 0 1-12.5 4.3L3.6 15a1.6 1.6 0 0 1 2.5-2L9 15"/></svg>',
-  abono:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c0-6 1-10 7-13-1 6-3 10-7 13zm0 0C9 18 6 16 4 9c5 1 7 5 8 13z"/></svg>',
-  plagas:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg>',
-  poda:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.5 7.5L20 18M8.5 16.5L20 6"/></svg>',
-  leccion:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L1 9l11 6 9-4.9V17h2V9zM5 13.2v4L12 21l7-3.8v-4L12 17z"/></svg>',
-  brotes:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M11 21v-7C7 14 4 11 4 6c4 0 7 2 7 6 0-4 3-8 9-8 0 6-3 10-7 10v7z"/></svg>',
-  racha:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 4 5 5.5 5 11a5 5 0 0 1-10 0c0-2.4 1.2-3.8 2.3-5 .2 1.6 1 2.7 2.2 3C11 8 12.4 5.4 12 2z"/></svg>',
-  hielo:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 2v20M4 7l16 10M20 7L4 17M9 3.5l3 2.5 3-2.5M9 20.5l3-2.5 3 2.5"/></svg>',
-  dato:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2zM9 19h6v1.5a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 20.5z"/></svg>',
-  candado:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 10V7a5 5 0 0 1 10 0v3h1v11H6V10zm2 0h6V7a3 3 0 0 0-6 0z"/></svg>',
-  nota:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 4h14v16H5zM8 9h8M8 13h8M8 17h5"/></svg>'
-};
-const TXT = {riego:"Riego",revision:"Prueba del dedo",abono:"Abono",plagas:"Patrulla de plagas",poda:"Poda",leccion:"Lección",brotes:"Brotes nuevos",dato:"Dato curioso",nota:"Nota"};
-const LEVELS = [[0,"Semilla"],[30,"Brote"],[80,"Plantita"],[160,"Arbusto"],[300,"Floración"],[500,"Abuelita sabia"],[800,"Reina del balcón"]];
-/* puntos (nivel) y monedas (tienda) por tipo de cuidado */
-const PTS = e => ({riego:10,revision:5,abono:15,poda:15,plagas:10,brotes:10,nota:2,dato:3,leccion:e.ok===false?1:5})[e.tipo] ?? 0;
-const MON = e => ({riego:10,revision:5,abono:15,poda:12,plagas:8,brotes:10,dato:3,leccion:e.ok===false?1:5})[e.tipo] ?? 0;
-const HITOS = [[3,10],[7,25],[14,40],[30,100],[60,150],[100,300]];
-const TIER_MON = [15,30,60];
+const el = (tag, cls, html) => { const e=document.createElement(tag); if(cls) e.className=cls; if(html!=null) e.innerHTML=html; return e; };
+const esc = s => String(s??"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const vibrar = (ms=12) => { try{ navigator.vibrate && navigator.vibrate(ms); }catch(_){} };
+const LS = { get(k,d){ try{ const v=localStorage.getItem(k); return v==null?d:JSON.parse(v); }catch(_){ return d; } }, set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(_){} } };
 
-const BADGES = [
-  {k:"riego", name:"Regadora", t:[3,10,30], icon:"riego", count:E=>E.filter(e=>e.tipo==="riego").length},
-  {k:"revision", name:"Dedito verde", t:[3,10,25], icon:"revision", count:E=>E.filter(e=>e.tipo==="revision"||e.tipo==="riego").length},
-  {k:"plagas", name:"Detective de plagas", t:[2,6,15], icon:"plagas", count:E=>E.filter(e=>e.tipo==="plagas").length},
-  {k:"abono", name:"Chef de Ciruquis", t:[1,5,12], icon:"abono", count:E=>E.filter(e=>e.tipo==="abono").length},
-  {k:"poda", name:"Tijeras de oro", t:[1,3,8], icon:"poda", count:E=>E.filter(e=>e.tipo==="poda").length},
-  {k:"leccion", name:"Sabia como Ciruquis", t:[3,10,30], icon:"leccion", count:E=>E.filter(e=>e.tipo==="leccion"&&e.ok!==false).length},
-  {k:"dato", name:"Coleccionista curiosa", t:[5,12,16], icon:"dato", count:E=>new Set(E.filter(e=>e.tipo==="dato").map(e=>e.nota)).size},
-  {k:"racha", name:"Llama eterna", t:[7,30,100], icon:"racha", count:()=>R.best}
-];
-
-const SHOP = [
-  {id:"protector", name:"Protector de racha", price:30, desc:"Salva la racha si un día no entran. Máximo 2.", consumible:true,
-   svg:'<svg viewBox="0 0 40 40"><path d="M20 3l14 5v10c0 9-6 15-14 19C12 33 6 27 6 18V8z" fill="var(--ice-soft)" stroke="var(--ice)" stroke-width="2.5"/><path d="M20 11c.8 3 4 4 4 8a4 4 0 0 1-8 0c0-2 1-3 1.8-4 .2 1.2.8 2 1.8 2.3C19 14.5 20.3 13 20 11z" fill="var(--ice)"/></svg>'},
-  {id:"rosada", name:"Chompa rosada", price:40, desc:"Tejida con lana rosada, como las que hacía para la familia.", grupo:"color",
-   svg:'<svg viewBox="0 0 40 40"><path d="M14 6h12l10 6-4 8-4-2v18H12V18l-4 2-4-8z" fill="#E58AB3"/><path d="M15 6q5 5 10 0" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="2"/></svg>'},
-  {id:"verde", name:"Chompa verde", price:50, desc:"Verde hoja, para combinar con sus ramas.", grupo:"color",
-   svg:'<svg viewBox="0 0 40 40"><path d="M14 6h12l10 6-4 8-4-2v18H12V18l-4 2-4-8z" fill="#4E8A5F"/><path d="M15 6q5 5 10 0" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="2"/></svg>'},
-  {id:"rayas", name:"Rayas tejidas", price:80, desc:"Le teje rayas amarillas a la chompa que tenga puesta.",
-   svg:'<svg viewBox="0 0 40 40"><path d="M14 6h12l10 6-4 8-4-2v18H12V18l-4 2-4-8z" fill="#7A2457"/><path d="M15 6q5 5 10 0" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="2"/><path d="M12 24h16M12 30h16" stroke="#F2B33D" stroke-width="3"/></svg>'},
-  {id:"reloj", name:"Reloj despertador", price:60, desc:"Siempre atenta a la hora, como la abuelita. Marca la hora real.",
-   svg:'<svg viewBox="0 0 40 40"><circle cx="9" cy="8" r="4" fill="#7A2457"/><circle cx="31" cy="8" r="4" fill="#7A2457"/><circle cx="20" cy="22" r="14" fill="#fff" stroke="#7A2457" stroke-width="3"/><path d="M20 22V13M20 22l6 4" stroke="#16261C" stroke-width="2.4" stroke-linecap="round"/></svg>'},
-  {id:"mariposa", name:"Mariposa amiga", price:110, desc:"Le hace compañía revoloteando.",
-   svg:'<svg viewBox="0 0 40 40"><ellipse cx="13" cy="15" rx="9" ry="10" fill="var(--sun)"/><ellipse cx="27" cy="15" rx="9" ry="10" fill="var(--sun)"/><ellipse cx="14" cy="28" rx="6" ry="7" fill="var(--bract)"/><ellipse cx="26" cy="28" rx="6" ry="7" fill="var(--bract)"/><rect x="18.5" y="8" width="3" height="26" rx="1.5" fill="var(--ink)"/></svg>'},
-  {id:"regadera", name:"Regadera dorada", price:150, desc:"El trofeo de las mejores jardineras.",
-   svg:'<svg viewBox="0 0 40 40"><path d="M10 16h20l-2 20H12z" fill="var(--gold)" stroke="#9C7A00" stroke-width="1.5"/><path d="M10 20L2 10" stroke="#9C7A00" stroke-width="3.5" stroke-linecap="round"/><path d="M30 20q9 4 0 11" stroke="#9C7A00" stroke-width="2.5" fill="none"/></svg>'}
-];
-
-const LESSONS = [
-  {id:"bractea",q:"Lo fucsia que parece pétalo en la bugambilia es…",o:["Una bráctea, una hoja de color","La flor verdadera","Un fruto"],a:0,e:"Es una bráctea. La flor verdadera es la florecita blanca del centro."},
-  {id:"dedo",q:"¿Cuándo toca regar?",o:["Todos los días sin falta","Cuando la tierra está seca a 3–4 cm","Cuando ya se cayeron las hojas"],a:1,e:"Mete el dedo hasta pasar la primera articulación: si está seco, toca agua."},
-  {id:"plato",q:"Después de regar, el agua del plato…",o:["Se deja para que tome después","Se vacía en unos 10 minutos","Se le agrega más"],a:1,e:"El agua estancada pudre las raíces y atrae mosquitas y zancudos."},
-  {id:"sol",q:"¿Cuántas horas de sol directo necesita para florecer?",o:["1–2 horas","5–6 horas o más","Prefiere la sombra"],a:1,e:"Mientras más sol, más brácteas. En verano limeño se pone feliz."},
-  {id:"nudo",q:"Al podar, el corte se hace…",o:["En el centro de la rama","5 mm encima de un nudo, en diagonal","Al ras de la tierra"],a:1,e:"El nudo es donde nace una hoja: de ahí brota la rama nueva."},
-  {id:"tercio",q:"En una poda, como máximo se quita…",o:["Un tercio de la planta","La mitad","Todas las ramas largas"],a:0,e:"Más de un tercio la estresa demasiado."},
-  {id:"abono",q:"¿Qué abono le gusta más para florecer?",o:["Mucho nitrógeno","Más fósforo y potasio","Ninguno, nunca"],a:1,e:"Mucho nitrógeno da hojas y pocas flores. El de floración trae más fósforo y potasio."},
-  {id:"invierno",q:"En el invierno de Lima, la bugambilia…",o:["Necesita más agua","Se riega menos y no se abona","Hay que meterla adentro por la helada"],a:1,e:"Con la panza de burro bebe poco; cada 10–15 días basta. En Lima no hiela."},
-  {id:"hormigas",q:"Si ves hormigas subiendo por el tallo, revisa si hay…",o:["Pulgones o cochinillas","Demasiado sol","Raíces fuera de la maceta"],a:0,e:"Las hormigas cuidan a los pulgones por su jugo dulce. Se limpian con algodón y alcohol o jabón potásico."},
-  {id:"mascotas",q:"¿Qué producto es más seguro cerca de Popeye y Zoe?",o:["Cebo para hormigas","Insecticida en spray","Jabón potásico o aceite de neem"],a:2,e:"Son mucho más seguros. Aplícalos cuando ellos no estén cerca y deja secar."},
-  {id:"cristal",q:"¿Por qué conviene separar las ramas del vidrio?",o:["Porque el vidrio se raya","Porque el calor del vidrio quema las hojas","No importa"],a:1,e:"Así se quemó la rama de hojas negras que cortaron."},
-  {id:"bracteas-tierra",q:"Las brácteas caídas sobre la tierra…",o:["Se dejan como abono","Se recogen para evitar hongos y mosquitas","Se entierran"],a:1,e:"Con la humedad de Lima se pudren rápido."}
-];
-
-/* datos curiosos: cada planta trae los suyos; nuevas plantas se agregan aquí */
-const DATOS = [
-  {id:"nombre",t:"Se llama así por un explorador",x:"Su nombre homenajea a Louis Antoine de Bougainville, el navegante francés que dio la vuelta al mundo entre 1766 y 1769."},
-  {id:"baret",t:"Una mujer disfrazada la encontró",x:"En esa expedición viajaba Jeanne Baret, vestida de hombre para poder ir como asistente del botánico. Se le atribuye haber recolectado la bugambilia en Brasil, y fue la primera mujer en dar la vuelta al mundo."},
-  {id:"peru",t:"Es sudamericana, como nosotros",x:"Es nativa de Sudamérica. Hasta hay una especie llamada Bougainvillea peruviana, que crece silvestre en Perú y Ecuador."},
-  {id:"tres",t:"Todo viene de a tres",x:"Cada grupito tiene tres brácteas, y cada bráctea lleva pegada una florecita blanca. Por eso en Venezuela le dicen trinitaria."},
-  {id:"papel",t:"Flor de papel",x:"Sus brácteas son tan delgadas y secas al tacto que en varios países le dicen flor de papel o papelillo."},
-  {id:"flor",t:"La flor verdadera dura poquito",x:"La florecita blanca dura apenas unos días, pero las brácteas pueden quedarse coloridas varias semanas."},
-  {id:"polinizadores",t:"Sus colores son un anuncio",x:"Las brácteas de colores sirven para atraer colibríes, mariposas y abejas hacia las flores, que son pequeñas y difíciles de ver."},
-  {id:"espinas",t:"Las espinas son ganchos",x:"En la naturaleza es trepadora: usa sus espinas curvas para engancharse a árboles y muros y subir hacia el sol."},
-  {id:"altura",t:"Puede trepar muy alto",x:"Si la dejan crecer libre, puede pasar los 10 metros, cubriendo muros y techos enteros."},
-  {id:"sed",t:"Florece mejor con un poco de sed",x:"Viene de zonas con temporadas secas. Un poco de sequedad entre riegos le avisa que es buen momento para florecer."},
-  {id:"familia",t:"Su prima es la maravilla",x:"Pertenece a la misma familia que la maravilla o dondiego de noche (Nyctaginaceae), esa flor que abre al atardecer."},
-  {id:"colores",t:"Viene en muchos colores",x:"Hay bugambilias fucsias, moradas, rojas, naranjas, amarillas, blancas y hasta de dos colores en la misma planta."},
-  {id:"injerto",t:"Una sola planta, dos colores",x:"Los jardineros pueden injertar ramas de distintas variedades en un mismo tronco para tener varios colores juntos."},
-  {id:"longeva",t:"Puede vivir muchísimos años",x:"Bien cuidada, una bugambilia vive décadas. Hay ejemplares con troncos gruesos como árboles."},
-  {id:"bonsai",t:"También se hace bonsái",x:"Como aguanta bien la poda y el tronco se pone grueso y retorcido, es una de las plantas con flor favoritas para bonsái."},
-  {id:"lima",t:"Le encanta el clima de Lima",x:"Como en Lima no hiela, puede estar afuera todo el año. Por eso se ve tanto en muros, parques y balcones limeños."}
-];
-const CURSOS = [
-  {id:"bugambilia", unidad:"Unidad 1 · Bugambilia", nombre:"Conoce a Ciruquis", lecciones:()=>LESSONS},
-  {id:"proxima", unidad:"Unidad 2", nombre:"Su próxima planta", locked:true}
-];
-
-/* ---------- fechas y temporada (Lima) ---------- */
-const day = d => { const x = new Date(d); x.setHours(0,0,0,0); return x; };
+/* ---------- fechas ---------- */
+const day = d => { const x=new Date(d); x.setHours(0,0,0,0); return x; };
 const dkey = d => { const x=day(d); return x.getFullYear()+"-"+(x.getMonth()+1)+"-"+x.getDate(); };
 const daysBetween = (a,b) => Math.round((day(b)-day(a))/86400000);
-function season(d){
-  const m = new Date(d).getMonth()+1;
-  if (m>=11 || m<=4) return {n:"Verano", max:4, abono:true};
-  if (m===10) return {n:"Primavera", max:7, abono:true};
-  if (m===5) return {n:"Otoño", max:10, abono:false};
-  return {n:"Invierno", max:15, abono:false};
-}
+const MESES=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 
-let entradas=[], compras=[], equipado=null, db=null, user=null, miId=null, miNombre="Teté", perfiles={}, puedeEscribir=true, mostrar=8, cargado=false;
-let prev={level:-1, tiers:-1, streak:-1};
+/* ---------- estado ---------- */
+let db=null, miId=null, miEmail="", personas={}, plantas=[], entradas=[], compras=[], equipado=null;
+let sel = LS.get("planta","ciruquis"), tab="inicio", cargado=false, puedeEscribir=true, mostrar=12, filtro="todas";
 let R={cur:0,best:0,todayActive:false,freezesLeft:0,days:{}};
+let prev={level:-1,tiers:-1,streak:-1,coins:null};
 
+const COLORES_MACETA=["#7A2457","#2F7A4F","#3C7DD6","#E0A21B","#D9534F","#8E6CCB"];
+const LEVELS_G=[[0,"Semilla"],[30,"Brote"],[80,"Plantita"],[160,"Arbusto"],[300,"Frondosa"],[500,"Experta"],[800,"Leyenda del jardín"]];
+const plantaDe = e => e.plantaId || "ciruquis";
+const yo = () => personas[miId] || {};
+const apodo = () => { const p=yo(); return (p.apodo||"").trim() || (p.nombre||"").split(" ")[0] || "Teté"; };
+const planta = () => plantas.find(p=>p.id===sel) || plantas[0] || {id:"ciruquis",nombre:"Ciruquis",especie:"bugambilia",color:"#7A2457"};
+const esp = p => ESPECIES[p.especie] || ESPECIES.otra;
+const esCiruquis = p => p && p.id==="ciruquis";
+const entradasDe = id => entradas.filter(e=>plantaDe(e)===id);
 const esAgua = e => e.tipo==="riego" || (e.tipo==="revision" && e.nota==="humeda");
-const ultimo = pred => entradas.find(pred);
 
-function estado(){
-  const s = season(new Date()), ref = ultimo(esAgua);
-  if (!ref) return {mood:"agua", d:null, max:s.max};
-  const d = daysBetween(ref.fecha, new Date());
-  return {mood: d<=s.max-2 ? "feliz" : d<=s.max ? "sed" : d<=s.max*2 ? "agua" : "rescate", d, max:s.max};
+function estadoPlanta(p){
+  const t=temporadaLima(new Date()), max=esp(p).riego[t.k];
+  const ref=entradasDe(p.id).find(esAgua);
+  if(!ref) return {mood:"agua", d:null, max, t};
+  const d=daysBetween(ref.fecha,new Date());
+  const mood = d<=Math.max(0,max-2) ? "feliz" : d<=max ? "sed" : d<=max*2 ? "agua" : "rescate";
+  return {mood,d,max,t};
 }
-
-/* racha diaria: cualquier misión o lección cuenta; los protectores cubren días perdidos */
 function calcularRacha(){
-  const activos = new Set(entradas.map(e=>dkey(e.fecha)));
-  const prot = compras.filter(c=>c.item==="protector").map(c=>day(c.fecha)).sort((a,b)=>a-b);
+  const activos=new Set(entradas.map(e=>dkey(e.fecha)));
+  const prot=compras.filter(c=>c.item==="protector").map(c=>day(c.fecha)).sort((a,b)=>a-b);
   const res={cur:0,best:0,todayActive:activos.has(dkey(new Date())),freezesLeft:0,days:{}};
   if(!activos.size){ res.freezesLeft=prot.length; return res; }
-  const primero = day(entradas[entradas.length-1].fecha), hoy=day(new Date());
-  let streak=0, usados=0;
+  const primero=day(entradas[entradas.length-1].fecha), hoy=day(new Date());
+  let s=0, usados=0;
   for(let d=new Date(primero); d<hoy; d.setDate(d.getDate()+1)){
     const k=dkey(d);
-    if(activos.has(k)){ streak++; res.days[k]="on"; }
-    else {
-      const disp = prot.filter(p=>p<=d).length - usados;
-      if(streak>0 && disp>0){ usados++; res.days[k]="frz"; }
-      else { streak=0; res.days[k]="off"; }
-    }
-    res.best=Math.max(res.best,streak);
+    if(activos.has(k)){ s++; res.days[k]="on"; }
+    else { const disp=prot.filter(p=>p<=d).length-usados; if(s>0&&disp>0){ usados++; res.days[k]="frz"; } else { s=0; res.days[k]="off"; } }
+    res.best=Math.max(res.best,s);
   }
-  if(res.todayActive){ streak++; res.days[dkey(hoy)]="on"; }
-  res.cur=streak; res.best=Math.max(res.best,streak);
-  res.freezesLeft = prot.length - usados;
+  if(res.todayActive){ s++; res.days[dkey(hoy)]="on"; }
+  res.cur=s; res.best=Math.max(res.best,s); res.freezesLeft=prot.length-usados;
   return res;
 }
 function tierDe(b){ const c=b.count(entradas); let t=0; b.t.forEach((th,i)=>{ if(c>=th) t=i+1; }); return {c,t}; }
 function monedas(){
-  let m = entradas.reduce((s,e)=>s+MON(e),0);
+  let m=entradas.reduce((s,e)=>s+MON(e),0);
   HITOS.forEach(([d,b])=>{ if(R.best>=d) m+=b; });
   BADGES.forEach(b=>{ const {t}=tierDe(b); for(let i=0;i<t;i++) m+=TIER_MON[i]; });
-  m -= compras.reduce((s,c)=>s+(c.costo||0),0);
-  return m;
+  return m - compras.reduce((s,c)=>s+(c.costo||0),0);
 }
-function nivel(xp){
-  let i=0; while(i<LEVELS.length-1 && xp>=LEVELS[i+1][0]) i++;
-  const cur=LEVELS[i][0], nxt=LEVELS[i+1]?LEVELS[i+1][0]:null;
-  return {i, name:LEVELS[i][1], nxt, pct: nxt? (xp-cur)/(nxt-cur)*100 : 100};
+function nivelDe(p){
+  const xp=entradasDe(p.id).reduce((s,e)=>s+PTS(e),0), L=esCiruquis(p)?LEVELS:LEVELS_G;
+  let i=0; while(i<L.length-1 && xp>=L[i+1][0]) i++;
+  const cur=L[i][0], nxt=L[i+1]?L[i+1][0]:null;
+  return {i,xp,name:L[i][1],nxt,pct:nxt?(xp-cur)/(nxt-cur)*100:100};
 }
+const COLORES = SHOP.filter(x=>x.grupo==="color").map(x=>x.id);
 const tiene = id => compras.some(c=>c.item===id);
 const puesto = id => { if(!tiene(id)) return false; if(equipado) return equipado.includes(id); const ult=compras.filter(c=>COLORES.includes(c.item)).map(c=>c.item).pop(); return SHOP.find(x=>x.id===id)?.grupo==="color" ? id===ult : true; };
 
-/* ---------- Ciruquis ---------- */
-const BRACT_SPOTS=[[92,64],[148,76],[52,74],[120,62],[70,58],[160,92],[38,92]];
-function dibujarCiruquis(mood, lvl){
-  const cls=["buga","mood-"+mood];
-  SHOP.forEach(s=>{ if(!s.consumible && puesto(s.id)) cls.push("has-"+s.id); });
-  $("buga").className = cls.join(" ");
-  const g=$("bracts"); g.innerHTML="";
-  const n = mood==="rescate"?0 : Math.min(BRACT_SPOTS.length, lvl+1);
-  for (let k=0;k<n;k++){
-    const [x,y]=BRACT_SPOTS[k];
-    const b=document.createElementNS("http://www.w3.org/2000/svg","g"); b.setAttribute("class","bract");
-    b.innerHTML=[0,120,240].map(r=>`<ellipse cx="${x}" cy="${y-8}" rx="7" ry="11" transform="rotate(${r} ${x} ${y})" fill="var(--bract)" opacity=".9"/>`).join("")+`<circle cx="${x}" cy="${y}" r="2.6" fill="#FFF8E6"/>`;
-    g.append(b);
-  }
-  const eyes=$("eyes");
-  if (mood==="feliz") eyes.innerHTML='<path d="M79 175 q5 -6 10 0 M111 175 q5 -6 10 0" stroke="var(--ink)" stroke-width="3" fill="none" stroke-linecap="round"/>';
-  else if (mood==="rescate") eyes.innerHTML='<path d="M80 170 l8 7 M88 170 l-8 7 M112 170 l8 7 M120 170 l-8 7" stroke="var(--ink)" stroke-width="2.8" stroke-linecap="round"/>';
-  else eyes.innerHTML='<circle cx="84" cy="173" r="3.8" fill="var(--ink)"/><circle cx="116" cy="173" r="3.8" fill="var(--ink)"/>';
-  $("mouth").setAttribute("d", {feliz:"M90 190 Q100 200 110 190", sed:"M91 193 L109 193", agua:"M90 197 Q100 188 110 197", rescate:"M92 198 Q100 190 108 198"}[mood]);
-  $("tear").setAttribute("opacity", mood==="agua"||mood==="rescate" ? ".9" : "0");
+/* ---------- dibujos de plantas ---------- */
+function bractG(x,y,s,fill="#E5338F"){
+  return `<g class="bract">${[0,120,240].map(r=>`<ellipse cx="${x}" cy="${y-8*s}" rx="${7*s}" ry="${11*s}" transform="rotate(${r} ${x} ${y})" fill="${fill}" opacity=".92"/>`).join("")}<circle cx="${x}" cy="${y}" r="${2.6*s}" fill="#FFF8E6"/></g>`;
 }
-function mensaje(st){
-  const c = miNombre || "corazón";
-  if (st.d===null) return ["¡Hola, "+c+"! Todavía no tengo riegos anotados.","Hazme la prueba del dedo y cuéntame."];
+function copaSVG(forma,lvl){
+  const L="#3E9A62", L2="#5DB57F";
+  if(forma==="flor"){
+    const spots=[[92,64],[148,76],[52,74],[120,62],[70,58],[160,92],[38,92]];
+    return `<path d="M100 150 C100 120 96 100 92 70" stroke="#7A5C44" stroke-width="5" fill="none" stroke-linecap="round"/><path d="M99 120 C115 105 130 98 146 80" stroke="#7A5C44" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M98 112 C84 100 70 92 54 78" stroke="#7A5C44" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <g fill="${L}"><ellipse cx="72" cy="104" rx="14" ry="8" transform="rotate(25 72 104)"/><ellipse cx="128" cy="108" rx="14" ry="8" transform="rotate(-25 128 108)"/><ellipse cx="88" cy="86" rx="12" ry="7" transform="rotate(-35 88 86)"/><ellipse cx="114" cy="90" rx="12" ry="7" transform="rotate(30 114 90)"/></g>`+spots.slice(0,Math.min(7,lvl+2)).map(([x,y])=>bractG(x,y,1)).join("");
+  }
+  if(forma==="suculenta"){
+    let g=""; const rings=[[44,28,8,"#4C9A6E"],[34,22,7,"#62B384"],[22,16,6,"#7CC79A"]];
+    rings.forEach(([rx,ry,n,c],k)=>{ for(let i=0;i<n;i++){ const a=i*360/n+k*20; g+=`<ellipse cx="100" cy="${132-ry}" rx="${10-k}" ry="${ry}" transform="rotate(${a} 100 132)" fill="${c}" stroke="#2F6E4A" stroke-width="1.2"/>`; } });
+    return g+`<circle cx="100" cy="132" r="6" fill="#9ED9B4"/>`+(lvl>=3?`<circle cx="100" cy="92" r="6" fill="#F7A8CF"/><path d="M100 98v20" stroke="#4C9A6E" stroke-width="3"/>`:"");
+  }
+  if(forma==="espada"){
+    const hojas=[[-26,96,"#3E8E5E"],[-12,70,"#4FA270"],[2,58,"#3E8E5E"],[16,74,"#4FA270"],[30,98,"#3E8E5E"]];
+    return hojas.map(([dx,top,c])=>`<path d="M${100+dx*.5-9} 146 Q${100+dx*.8-10} ${(146+top)/2} ${100+dx} ${top} Q${100+dx*.8+10} ${(146+top)/2} ${100+dx*.5+9} 146Z" fill="${c}"/><path d="M${100+dx*.5-4} 140 Q${100+dx*.7} ${(146+top)/2} ${100+dx} ${top+10}" stroke="#E6D27A" stroke-width="1.6" fill="none" opacity=".7"/>`).join("");
+  }
+  if(forma==="orquidea"){
+    const flor=(x,y)=>`<g class="bract">${[0,72,144,216,288].map(r=>`<ellipse cx="${x}" cy="${y-8}" rx="6" ry="9" transform="rotate(${r} ${x} ${y})" fill="#F4E9F7" stroke="#C987D6" stroke-width="1.2"/>`).join("")}<circle cx="${x}" cy="${y}" r="4" fill="#C8177A"/></g>`;
+    return `<path d="M104 146 C108 110 120 80 142 62" stroke="#5B7A4A" stroke-width="3.5" fill="none"/>
+    <ellipse cx="80" cy="138" rx="26" ry="10" fill="${L}" transform="rotate(-12 80 138)"/><ellipse cx="122" cy="140" rx="26" ry="10" fill="${L2}" transform="rotate(14 122 140)"/>`+[[118,96],[132,76],[146,60]].slice(0,Math.min(3,lvl+1)).map(([x,y])=>flor(x,y)).join("");
+  }
+  if(forma==="helecho"){
+    const fronda=(ang,len)=>{ let g=`<g transform="rotate(${ang} 100 146)"><path d="M100 146 Q104 ${146-len*.6} 100 ${146-len}" stroke="#3E8E5E" stroke-width="3" fill="none"/>`; for(let i=1;i<9;i++){ const y=146-len*i/9; const w=10-i*.8; g+=`<ellipse cx="${100-w}" cy="${y}" rx="${w}" ry="3.2" fill="#55AE78"/><ellipse cx="${100+w}" cy="${y}" rx="${w}" ry="3.2" fill="#55AE78"/>`; } return g+"</g>"; };
+    return fronda(-50,70)+fronda(50,70)+fronda(-25,86)+fronda(25,86)+fronda(0,94);
+  }
+  // hojas (potus, monstera, otra)
+  const hoja=(x,y,r,s)=>`<g transform="translate(${x} ${y}) rotate(${r}) scale(${s})"><path d="M0 0 C-16 -10 -16 -32 0 -40 C16 -32 16 -10 0 0Z" fill="${L}"/><path d="M0 -3 V-36" stroke="#2F6E4A" stroke-width="1.6"/></g>`;
+  return `<path d="M100 146 C96 120 90 104 84 92 M100 146 C104 118 112 102 120 90 M100 146 C100 124 100 108 100 84" stroke="#4E7A3A" stroke-width="3" fill="none"/>`+hoja(84,94,-30,1)+hoja(120,92,30,1)+hoja(100,86,0,1.1)+hoja(70,122,-60,.85)+hoja(132,122,60,.85)+(lvl>=2?hoja(62,100,-50,.7)+hoja(140,100,50,.7):"");
+}
+function caraSVG(mood,lentes){
+  const ink="var(--ink)";
+  const ojos = mood==="feliz" ? `<path d="M79 175 q5 -6 10 0 M111 175 q5 -6 10 0" stroke="${ink}" stroke-width="3" fill="none" stroke-linecap="round"/>`
+    : mood==="rescate" ? `<path d="M80 170 l8 7 M88 170 l-8 7 M112 170 l8 7 M120 170 l-8 7" stroke="${ink}" stroke-width="2.8" stroke-linecap="round"/>`
+    : `<g class="blink"><circle cx="84" cy="173" r="3.8" fill="${ink}"/><circle cx="116" cy="173" r="3.8" fill="${ink}"/></g>`;
+  const boca={feliz:"M90 190 Q100 200 110 190", sed:"M91 193 L109 193", agua:"M90 197 Q100 188 110 197", rescate:"M92 198 Q100 190 108 198"}[mood];
+  return ojos+(lentes?`<g fill="none" stroke="${ink}" stroke-width="2.4"><circle cx="84" cy="173" r="10"/><circle cx="116" cy="173" r="10"/><path d="M94 172 Q100 168 106 172"/></g>`:"")+
+    `<ellipse cx="72" cy="188" rx="7" ry="4" fill="#E5338F" opacity=".3"/><ellipse cx="128" cy="188" rx="7" ry="4" fill="#E5338F" opacity=".3"/><path d="${boca}" stroke="${lentes?"#6B1D4F":ink}" stroke-width="${lentes?4.4:3.4}" fill="none" stroke-linecap="round"/>`+
+    ((mood==="agua"||mood==="rescate")?`<path d="M122 182 q4 7 0 10 q-4 -3 0 -10z" fill="#4AA3E0"/>`:"");
+}
+function plantaSVG(p,mood,lvl,{mini=false}={}){
+  const color=p.color||"#7A2457", f=esp(p).forma;
+  const pot=`<path d="M52 148 H148 L138 206 Q137 212 130 212 H70 Q63 212 62 206 Z" fill="var(--pot)" stroke="var(--pot-line)" stroke-width="3"/><rect x="46" y="140" width="108" height="15" rx="6" fill="${color}"/>`;
+  if(mini) return `<svg viewBox="30 30 150 190" aria-hidden="true"><rect x="30" y="30" width="150" height="190" fill="${color}" opacity=".16"/>${copaSVG(f,3)}${pot}${caraSVG("feliz",esCiruquis(p))}</svg>`;
+  return `<svg viewBox="0 0 210 230" role="img" aria-label="${esc(p.nombre)}"><g class="plant">${copaSVG(f,lvl)}</g><g class="potg">${pot}${caraSVG(mood,false)}</g></svg>`;
+}
+const miniDe = p => plantaSVG(p,"feliz",3,{mini:true});
+
+/* Ciruquis usa su dibujo especial (con chompa, ovillo, lentes y regalos de la tienda) */
+let ciruquisMontada=false;
+function dibujarCiruquis(mood,lvl){
+  const box=$("buga");
+  if(!ciruquisMontada){ box.innerHTML=""; box.append($("tplCiruquis").content.cloneNode(true)); ciruquisMontada=true; }
+  const cls=["buga","mood-"+mood]; SHOP.forEach(s=>{ if(!s.consumible && puesto(s.id)) cls.push("has-"+s.id); });
+  box.className=cls.join(" ");
+  const g=box.querySelector("#bracts"); g.innerHTML="";
+  const spots=[[92,64],[148,76],[52,74],[120,62],[70,58],[160,92],[38,92]];
+  const n = mood==="rescate"?0:Math.min(spots.length,lvl+1);
+  g.innerHTML = spots.slice(0,n).map(([x,y])=>bractG(x,y,1,"var(--bract)")).join("");
+  const eyes=box.querySelector("#eyes");
+  if(mood==="feliz") eyes.innerHTML='<path d="M79 175 q5 -6 10 0 M111 175 q5 -6 10 0" stroke="var(--ink)" stroke-width="3" fill="none" stroke-linecap="round"/>';
+  else if(mood==="rescate") eyes.innerHTML='<path d="M80 170 l8 7 M88 170 l-8 7 M112 170 l8 7 M120 170 l-8 7" stroke="var(--ink)" stroke-width="2.8" stroke-linecap="round"/>';
+  else eyes.innerHTML='<g class="blink"><circle cx="84" cy="173" r="3.8" fill="var(--ink)"/><circle cx="116" cy="173" r="3.8" fill="var(--ink)"/></g>';
+  box.querySelector("#mouth").setAttribute("d",{feliz:"M90 190 Q100 200 110 190",sed:"M91 193 L109 193",agua:"M90 197 Q100 188 110 197",rescate:"M92 198 Q100 190 108 198"}[mood]);
+  box.querySelector("#tear").setAttribute("opacity",mood==="agua"||mood==="rescate"?".9":"0");
+  moverReloj();
+}
+function moverReloj(){ const h=$("buga").querySelector("#hHour"); if(!h) return; const d=new Date(), m=d.getMinutes(), hh=d.getHours()%12+m/60;
+  h.setAttribute("transform",`rotate(${hh*30} 28 128)`); $("buga").querySelector("#hMin").setAttribute("transform",`rotate(${m*6} 28 128)`); }
+
+/* ---------- mensajes ---------- */
+function horaTxt(){
+  const h=new Date().getHours();
+  if(h>=5&&h<9) return "Buenos días. ¿Ya tomaste desayuno?";
+  if(h>=9&&h<12) return "Buena mañana de trabajo. Tómate tu agüita tú también.";
+  if(h>=12&&h<15) return "Hora de almorzar. No te saltes la comida.";
+  if(h>=15&&h<19) return "¿Cómo va la tarde? Ciruquis sigue tejiendo.";
+  if(h>=19&&h<22) return "Qué bueno que ya llegaste a casa.";
+  return "Ya es tardecito. A descansar.";
+}
+/* Lo que dice la planta: una frase corta y un dato aparte, con su ícono */
+function estadoTxt(p,st){
+  if(st.d===null) return {t:"Todavía no sé cuándo tomé agua.", s:"Hazme la prueba del dedo", i:"revision"};
   const hace = st.d===0?"hoy":st.d===1?"ayer":`hace ${st.d} días`;
-  switch(st.mood){
-    case "feliz": { const f=st.max-2-st.d; return [`¡Qué rico, ${c}! Me dieron agüita ${hace}.`, f<=0?"Mañana me haces la prueba del dedo, ¿ya?":`Próxima prueba del dedo en ${f} día${f===1?"":"s"}.`]; }
-    case "sed": return [`Ay, ${c}, creo que ya me va dando sed…`, `Último riego ${hace}. Hazme la prueba del dedo hoy.`];
-    case "agua": return [`¡${c[0].toUpperCase()+c.slice(1)}, tengo sed! Revísame la tierra hoy.`, `Último riego ${hace}.`];
-    default: return [`Llevo ${st.d} días sin agüita… ¡rescátame!`, "Riégame a fondo y vacía el plato después."];
-  }
+  if(st.mood==="feliz"){ const f=st.max-2-st.d; return {t:"¡Qué rico, ya tomé agüita!", s:`Último riego ${hace} · ${f<=0?"prueba del dedo mañana":`prueba del dedo en ${f} día${f===1?"":"s"}`}`, i:"riego"}; }
+  if(st.mood==="sed") return {t:"Creo que ya me va dando sed…", s:`Último riego ${hace} · prueba del dedo hoy`, i:"revision"};
+  if(st.mood==="agua") return {t:"¡Tengo sed! ¿Me revisas la tierra?", s:`Último riego ${hace}`, i:"riego"};
+  return {t:"¡Rescátame, por favor!", s:`${st.d} días sin agua · riego a fondo y vaciar el plato`, i:"riego"};
+}
+function rotMensajes(){
+  const p=planta(), st=estadoPlanta(p), out=[];
+  out.push(horaTxt());
+  out.push(st.mood==="feliz" ? `${p.nombre} está feliz y bien hidratada.` : st.mood==="sed" ? `${p.nombre} pronto tendrá sed.` : `${p.nombre} necesita agua hoy.`);
+  out.push(R.cur>0 ? (R.todayActive ? `Racha de ${R.cur} día${R.cur===1?"":"s"}: hoy ya está a salvo.` : `Racha de ${R.cur} día${R.cur===1?"":"s"}: una misión la mantiene viva.`) : "Completa una misión y enciende tu racha.");
+  const vistos=new Set(entradas.filter(e=>e.tipo==="dato").map(e=>e.nota));
+  if(vistos.size<DATOS.length) out.push("Hay un dato curioso nuevo en tus misiones.");
+  const tips=esp(p).tips; out.push(tips[Math.floor(Date.now()/864e5)%tips.length]);
+  if(plantas.length>1) out.push(`Tu jardín tiene ${plantas.length} plantas. Cámbialas desde arriba.`);
+  return out;
+}
+const CARINO=["¡Me haces cosquillas!","Gracias por cuidarme.","Te quiero mucho.","¿Ya tomaste agua tú también?","Aquí sigo, tejiendo una chompita.","¡Qué lindo verte!"];
+
+/* ---------- navegación ---------- */
+const TABS=["inicio","aprender","premios","diario","perfil"];
+function irA(t,{scroll=true}={}){
+  if(!TABS.includes(t)) t="inicio";
+  const cambia = t!==tab; tab=t;
+  document.querySelectorAll(".view").forEach(v=>{ const on=v.dataset.view===t; v.hidden=!on; if(on&&cambia){ v.classList.remove("enter"); void v.offsetWidth; v.classList.add("enter"); } });
+  document.querySelectorAll(".tabbar button").forEach(b=>b.classList.toggle("on",b.dataset.tab===t));
+  if(location.hash!=="#"+t) history.replaceState(null,"","#"+t);
+  if(scroll&&cambia) window.scrollTo({top:0});
+}
+document.querySelectorAll(".tabbar button").forEach(b=>b.onclick=()=>{ vibrar(); irA(b.dataset.tab); });
+window.addEventListener("hashchange",()=>irA(location.hash.slice(1)));
+$("chipStreak").onclick=()=>{ vibrar(); irA("premios"); };
+$("chipCoins").onclick=()=>{ vibrar(); irA("premios"); setTimeout(()=>$("tiendaH").scrollIntoView({behavior:"smooth",block:"start"}),80); };
+$("plantChip").onclick=()=>{ vibrar(); hojaPlantas(); };
+
+/* ---------- hojas (sheets) ---------- */
+function abrirHoja(titulo,construir){
+  $("sheetTitle").textContent=titulo; const body=$("sheetBody"); body.innerHTML=""; construir(body);
+  $("sheetWrap").hidden=false; $("sheetWrap").classList.remove("closing");
+}
+function cerrarHoja(){ const w=$("sheetWrap"); if(w.hidden) return; w.classList.add("closing"); setTimeout(()=>{ w.hidden=true; w.classList.remove("closing"); },220); }
+$("sheetBack").onclick=cerrarHoja; $("sheetClose").onclick=cerrarHoja;
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") cerrarHoja(); });
+
+function boton(txt,cls,fn){ const b=el("button","btn "+(cls||"")); b.type="button"; b.textContent=txt; b.disabled=!db||!puedeEscribir; b.onclick=e=>{ vibrar(); fn(e,b); }; return b; }
+function fila(...bs){ const d=el("div","btns"+(bs.length===1?" one":"")); d.append(...bs); return d; }
+function avatarHTML(per,size=42){
+  const foto=per&&(per.foto||per.fotoGoogle);
+  const ini=esc(((per&&(per.apodo||per.nombre))||"?").trim()[0]||"?").toUpperCase();
+  return `<span class="av" style="width:${size}px;height:${size}px;font-size:${size*.42}px">${foto?`<img src="${esc(foto)}" alt="" referrerpolicy="no-referrer">`:ini}</span>`;
 }
 
-function horaAbuelita(){
-  const h=new Date().getHours(), c=miNombre||"corazón";
-  if(h>=5&&h<9) return `Buenos días, ${c}. ¿Ya tomaste desayuno? Que te vaya bonito en el trabajo.`;
-  if(h>=9&&h<12) return `¿Ya estás trabajando, ${c}? Tómate tu agüita tú también.`;
-  if(h>=12&&h<15) return `¿Ya almorzaste, ${c}? No te me saltes la comida.`;
-  if(h>=15&&h<19) return `¿Cómo te fue hoy, ${c}? Yo aquí, tejiendo.`;
-  if(h>=19&&h<22) return `Qué bueno que ya llegaste a casa, ${c}.`;
-  return `Ya es tardecito, ${c}. Anda a descansar.`;
-}
-function moverReloj(){ const d=new Date(), m=d.getMinutes(), h=d.getHours()%12+m/60;
-  $("hHour").setAttribute("transform",`rotate(${h*30} 28 128)`); $("hMin").setAttribute("transform",`rotate(${m*6} 28 128)`); }
-setInterval(()=>{ moverReloj(); $("abu").textContent=horaAbuelita(); },60000);
-
-/* ---------- racha ---------- */
-function renderRacha(){
-  $("streakChip").textContent=R.cur;
-  const on=R.cur>0;
-  $("snum").textContent=R.cur; $("snum").className="snum"+(on?"":" off");
-  $("flame").className="flame"+(on?(R.todayActive?" live":""):" off");
-  $("slabel").textContent = R.cur===1?"día de racha":"días de racha";
-  let msg;
-  if(!on) msg="Completa una misión o la lección de hoy para encender la racha.";
-  else if(!R.todayActive) msg="¡Todavía no cuidas a Ciruquis hoy! Haz una misión o la lección para no perder la racha.";
-  else { const sig=HITOS.find(([d])=>d>R.cur); msg = sig ? `¡Racha a salvo hoy! A los ${sig[0]} días ganas ${sig[1]} monedas.` : "¡Racha a salvo hoy! Eres leyenda."; }
-  if(R.freezesLeft>0) msg+=` Tienes ${R.freezesLeft} protector${R.freezesLeft>1?"es":""} de racha.`;
-  $("smsg").textContent=msg;
-  const w=$("week"); w.innerHTML="";
-  const L=["D","L","M","M","J","V","S"], hoy=day(new Date());
-  for(let i=6;i>=0;i--){
-    const d=new Date(hoy); d.setDate(d.getDate()-i);
-    const st=R.days[dkey(d)], isToday=i===0;
-    const el=document.createElement("div");
-    el.className="wd"+(st==="on"?" on":st==="frz"?" frz":"")+(isToday&&st!=="on"?" today":"");
-    el.innerHTML=`<i>${st==="on"?ICON.racha:st==="frz"?ICON.hielo:""}</i><span>${isToday?"Hoy":L[d.getDay()]}</span>`;
-    w.append(el);
-  }
+function hojaPlantas(){
+  abrirHoja("Mi jardín", body=>{
+    const list=el("div","list");
+    plantas.forEach(p=>{
+      const st=estadoPlanta(p), r=el("button","row"); r.type="button";
+      r.innerHTML=`<span class="ri">${miniDe(p)}</span><span class="rt"><b>${esc(p.nombre)}</b><span>${esc(esp(p).nombre)}</span></span><span class="mood-pill ${st.mood}">${{feliz:"Feliz",sed:"Sed",agua:"Sedienta",rescate:"¡Rescate!"}[st.mood]}</span>${p.id===sel?'<span class="tag ok">Aquí</span>':'<i class="chev"></i>'}`;
+      r.onclick=()=>{ vibrar(); sel=p.id; LS.set("planta",sel); ciruquisMontada=false; cerrarHoja(); irA("inicio"); render(); toast(`Hola de nuevo, ${p.nombre}`); };
+      list.append(r);
+    });
+    body.append(list, boton("+ Agregar planta","plum wide",()=>formPlanta()));
+  });
 }
 
-/* ---------- misiones ---------- */
+function formPlanta(p=null){
+  const nueva=!p, d={nombre:p?.nombre||"", especie:p?.especie||"", color:p?.color||COLORES_MACETA[(plantas.length)%COLORES_MACETA.length], desde:p?.desde||""};
+  abrirHoja(nueva?"Nueva planta":"Editar planta", body=>{
+    const prev=el("div","prev"); const paint=()=>{ prev.innerHTML=plantaSVG({...d,id:p?.id||"nueva",especie:d.especie||"otra"},"feliz",3); };
+    const fN=el("div","field",`<label for="pNombre">¿Cómo se llama?</label><input class="input" id="pNombre" maxlength="24" placeholder="Por ejemplo: Rosita" value="${esc(d.nombre)}">`);
+    const fE=el("div","field",`<label>¿Qué planta es?</label>`); const grid=el("div","species");
+    Object.entries(ESPECIES).forEach(([k,s])=>{ const b=el("button","sp"+(d.especie===k?" on":"")); b.type="button"; b.innerHTML=plantaSVG({especie:k,color:d.color,id:"x"},"feliz",3,{mini:true})+`<span>${esc(s.nombre.split(" (")[0])}</span>`;
+      b.onclick=()=>{ vibrar(); d.especie=k; grid.querySelectorAll(".sp").forEach(x=>x.classList.remove("on")); b.classList.add("on"); paint(); }; grid.append(b); });
+    fE.append(grid);
+    const fC=el("div","field",`<label>Color de su maceta</label>`); const sws=el("div","swatches");
+    COLORES_MACETA.forEach(c=>{ const s=el("button","sw"+(d.color===c?" on":"")); s.type="button"; s.style.background=c; s.setAttribute("aria-label","Color "+c);
+      s.onclick=()=>{ vibrar(); d.color=c; sws.querySelectorAll(".sw").forEach(x=>x.classList.remove("on")); s.classList.add("on"); paint(); }; sws.append(s); });
+    fC.append(sws);
+    const fD=el("div","field",`<label for="pDesde">¿Desde cuándo vive con ustedes?</label><input class="input" type="date" id="pDesde" value="${esc(d.desde)}"><small>Opcional</small>`);
+    body.append(prev,fN,fE,fC,fD); paint();
+    body.querySelector("#pNombre").oninput=e=>{ d.nombre=e.target.value; };
+    const guardarB=boton(nueva?"Agregar al jardín":"Guardar cambios","plum wide",async(e,b)=>{
+      d.nombre=body.querySelector("#pNombre").value.trim(); d.desde=body.querySelector("#pDesde").value;
+      if(!d.nombre){ toast("Ponle un nombre a tu planta"); body.querySelector("#pNombre").focus(); return; }
+      if(!d.especie){ toast("Elige qué planta es"); return; }
+      b.disabled=true;
+      try{
+        if(nueva){ const ref=await db.collection("plantas").add({...d, orden:plantas.length, creada:new Date().toISOString(), quien:miId}); sel=ref.id; LS.set("planta",sel); ciruquisMontada=false;
+          cerrarHoja(); irA("inicio"); render(); setTimeout(()=>{ confeti(30); toast(`¡Bienvenida ${d.nombre} al jardín!`); },350); }
+        else { await db.collection("plantas").doc(p.id).set(d,{merge:true}); cerrarHoja(); toast("Cambios guardados"); }
+      }catch(_){ toast("No se pudo guardar. Intenta de nuevo."); b.disabled=false; }
+    });
+    body.append(guardarB);
+    if(!nueva && plantas.length>1){
+      const q=boton("Quitar del jardín","ghost",async(e,b)=>{
+        if(!b.dataset.sure){ b.dataset.sure="1"; b.textContent=`¿Seguro? Toca otra vez para quitar a ${p.nombre}`; return; }
+        await db.collection("plantas").doc(p.id).set({archivada:true},{merge:true});
+        if(sel===p.id){ sel=plantas.find(x=>x.id!==p.id).id; LS.set("planta",sel); ciruquisMontada=false; render(); }
+        cerrarHoja(); toast(`${p.nombre} salió del jardín. Su historial se conserva.`);
+      });
+      body.append(q);
+    }
+  });
+}
+
+let fotoPendiente=null;
+function formPerfil(){
+  const p=yo(); fotoPendiente=null;
+  abrirHoja("Editar perfil", body=>{
+    const top=el("div","profile-head");
+    top.innerHTML=`<button class="avatar-xl" id="fAvatar" type="button" aria-label="Cambiar foto"><span>${avatarHTML(p,110).replace('class="av"','class="av" id="fAv"')}</span><i class="cam"></i></button>`;
+    const acc=el("div","btns");
+    acc.append(boton("Cambiar foto","alt small",()=>$("photoInput").click()), boton("Usar la de Google","alt small",()=>{ fotoPendiente=""; top.querySelector("#fAvatar span").innerHTML=avatarHTML({...p,foto:""},110); }));
+    const fN=el("div","field",`<label for="fNombre">Tu nombre</label><input class="input" id="fNombre" maxlength="40" value="${esc(p.nombre||"")}">`);
+    const fA=el("div","field",`<label for="fApodo">¿Cómo te llaman Ciruquis y tus plantas?</label><input class="input" id="fApodo" maxlength="20" value="${esc(p.apodo||"")}" placeholder="Teté"><small>Es el nombre que verás en los saludos y avisos.</small>`);
+    body.append(top,acc,fN,fA);
+    top.querySelector("#fAvatar").onclick=()=>$("photoInput").click();
+    body.append(boton("Guardar","plum wide",async(e,b)=>{
+      b.disabled=true;
+      const upd={nombre:body.querySelector("#fNombre").value.trim(), apodo:body.querySelector("#fApodo").value.trim()};
+      if(fotoPendiente!==null) upd.foto=fotoPendiente;
+      try{ await db.collection("personas").doc(miId).set(upd,{merge:true}); cerrarHoja(); toast("Perfil actualizado","ok"); confeti(18); }
+      catch(_){ toast("No se pudo guardar. Intenta de nuevo."); b.disabled=false; }
+    }));
+  });
+}
+$("photoInput").onchange=async e=>{
+  const f=e.target.files[0]; e.target.value=""; if(!f) return;
+  try{
+    const img=await new Promise((ok,ko)=>{ const i=new Image(); i.onload=()=>ok(i); i.onerror=ko; i.src=URL.createObjectURL(f); });
+    const s=Math.min(img.naturalWidth,img.naturalHeight), c=document.createElement("canvas"); c.width=c.height=320;
+    c.getContext("2d").drawImage(img,(img.naturalWidth-s)/2,(img.naturalHeight-s)/2,s,s,0,0,320,320);
+    const url=c.toDataURL("image/jpeg",.82);
+    if($("sheetWrap").hidden){ await db.collection("personas").doc(miId).set({foto:url},{merge:true}); toast("¡Qué linda foto!"); confeti(16); }
+    else { fotoPendiente=url; const a=document.querySelector("#fAvatar span"); if(a) a.innerHTML=avatarHTML({foto:url},110); }
+  }catch(_){ toast("No se pudo abrir esa foto. Prueba con otra."); }
+};
+
+/* ---------- vistas ---------- */
+let rotIdx=0, rotTimer=null, rotLista=[], rotPlanta=null;
+function pintarRot(i,anim=true){
+  rotLista=rotMensajes(); if(!rotLista.length) return; rotIdx=(i+rotLista.length)%rotLista.length;
+  const s=$("rotText");
+  const set=()=>{ s.textContent=rotLista[rotIdx]; };
+  if(anim){ s.classList.add("out"); setTimeout(()=>{ set(); s.classList.remove("out"); s.classList.add("in"); requestAnimationFrame(()=>requestAnimationFrame(()=>s.classList.remove("in"))); },300); } else set();
+  const dots=$("rotDots"); dots.innerHTML="";
+  rotLista.forEach((_,k)=>{ const b=el("button",k===rotIdx?"on":""); b.type="button"; b.setAttribute("aria-label","Mensaje "+(k+1)); b.onclick=()=>{ pintarRot(k); reiniciarRot(); }; dots.append(b); });
+}
+function reiniciarRot(){ clearInterval(rotTimer); rotTimer=setInterval(()=>pintarRot(rotIdx+1),6000); }
+
+let burbujaIdx=-1;
+function pintarBurbuja(m,anim){
+  const b=$("bubble"); b.innerHTML="";
+  const t=el("p","bt"); t.textContent=m.t; b.append(t);
+  if(m.s){ const s=el("div","bs"); s.innerHTML=`<span class="bi">${ICON[m.i]||ICON.riego}</span><span></span>`; s.lastChild.textContent=m.s; b.append(s); }
+  if(anim){ b.classList.remove("pop"); void b.offsetWidth; b.classList.add("pop"); }
+}
+$("mascot").onclick=()=>{
+  vibrar(18); const m=$("mascot"); m.classList.remove("wiggle"); void m.offsetWidth; m.classList.add("wiggle");
+  burbujaIdx=(burbujaIdx+1)%(CARINO.length+1);
+  const p=planta(), st=estadoPlanta(p);
+  pintarBurbuja(burbujaIdx===CARINO.length ? estadoTxt(p,st) : {t:CARINO[burbujaIdx]}, true);
+  corazones();
+};
+
+function renderHeader(saldo){
+  const p=planta();
+  $("chipMini").innerHTML=miniDe(p); $("chipName").textContent=p.nombre;
+  $("streakChip").textContent=R.cur; $("chipStreak").classList.toggle("off",!R.cur||!R.todayActive);
+  $("chipStreak").querySelector(".ico").innerHTML=ICON.racha; $("chipCoins").querySelector(".ico").innerHTML=COIN_SVG;
+  animarNumero($("coins"),Math.max(0,saldo));
+  document.querySelectorAll(".tabbar button").forEach(b=>{ const t=b.dataset.tab; if(t!=="perfil") b.querySelector(".ti").innerHTML=ICON[t]; });
+  $("tabAvatar").innerHTML = (yo().foto||yo().fotoGoogle) ? avatarHTML(yo(),28) : ICON.perfil;
+}
+function animarNumero(nodo,a){
+  const de=parseInt(nodo.textContent)||0; if(de===a){ nodo.textContent=a; return; }
+  const t0=performance.now(), dur=650;
+  const paso=t=>{ const k=Math.min(1,(t-t0)/dur); nodo.textContent=Math.round(de+(a-de)*(1-Math.pow(1-k,3))); if(k<1) requestAnimationFrame(paso); };
+  requestAnimationFrame(paso); const st=nodo.parentElement; st.classList.remove("bump"); void st.offsetWidth; st.classList.add("bump");
+}
+
 function card({icon,cls,title,sub,tag,tagCls,done}){
-  const m=document.createElement("article"); m.className="mission"+(done?" done":"");
-  m.innerHTML=`<div class="mhead"><div class="micon ${cls||""}">${ICON[icon]}</div><div class="mbody"><div class="mtitle"></div><div class="msub"></div></div>${tag?`<span class="tag ${tagCls}"></span>`:""}</div>`;
+  const m=el("article","mission"+(done?" done":""));
+  m.innerHTML=`<div class="mhead"><div class="micon ${done?"ok":cls||""}">${done?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>':ICON[icon]}</div><div class="mbody"><div class="mtitle"></div><div class="msub"></div></div>${tag?`<span class="tag ${tagCls}"></span>`:""}</div>`;
   m.querySelector(".mtitle").textContent=title; m.querySelector(".msub").textContent=sub;
-  if(tag) m.querySelector(".tag").textContent=tag;
+  if(tag){ const t=m.querySelector(".tag"); if(tagCls==="coin") t.innerHTML=COIN_SVG+esc(tag); else t.textContent=tag; }
   return m;
 }
-function boton(txt,cls,fn){ const b=document.createElement("button"); b.type="button"; b.className="btn "+(cls||""); b.textContent=txt; b.disabled=!db||!puedeEscribir; b.onclick=fn; return b; }
-function fila(...bs){ const d=document.createElement("div"); d.className="btns"+(bs.length===1?" one":""); d.append(...bs); return d; }
+function renderInicio(){
+  const p=planta(), st=estadoPlanta(p), lv=nivelDe(p), hoy=new Date(), s=esp(p);
+  $("hello").textContent=`¡Hola, ${apodo()}!`;
+  if(esCiruquis(p)) dibujarCiruquis(st.mood,lv.i);
+  else { ciruquisMontada=false; const b=$("buga"); b.className="buga mood-"+st.mood; b.innerHTML=plantaSVG(p,st.mood,lv.i); }
+  if(burbujaIdx<0 || burbujaIdx===CARINO.length) pintarBurbuja(estadoTxt(p,st),false);
+  $("stageName").textContent=p.nombre;
+  const pill=$("moodPill"); pill.className="mood-pill "+st.mood; pill.textContent={feliz:"Feliz",sed:"Con un poco de sed",agua:"Sedienta",rescate:"Necesita rescate"}[st.mood];
+  $("levelName").textContent=`Nivel ${lv.i+1} · ${lv.name}`;
+  $("levelNext").textContent=lv.nxt?`${lv.xp} / ${lv.nxt} pts`:`${lv.xp} pts`;
+  requestAnimationFrame(()=>{ $("levelBar").style.width=lv.pct+"%"; });
 
-function renderMisiones(){
-  const box=$("missions"); box.innerHTML="";
-  const hoy=new Date(), st=estado(), s=season(hoy);
-  const regadoHoy = entradas.some(e=>esAgua(e) && daysBetween(e.fecha,hoy)===0);
-  if (regadoHoy){
-    box.append(card({icon:"riego",title:"Agua al día",sub:"Ya me cuidaron hoy, Teté. Vuelve cuando te pida agüita.",tag:"Hecho",tagCls:"ok",done:true}));
-  } else if (st.mood==="feliz"){
-    const c=card({icon:"riego",title:"Ciruquis está bien de agua",sub:`En ${s.n.toLowerCase()}, riego cada ${s.max<=4?"3–4":s.max} días y siempre con la tierra seca.`,tag:"Al día",tagCls:"ok",done:true});
-    c.append(fila(boton("Igual quiero revisar la tierra","alt",()=>abrirDedo(c)))); box.append(c);
+  // misiones
+  const box=$("missions"); box.innerHTML=""; const hechas=[], pend=[];
+  const add=(c,done)=>(done?hechas:pend).push(c);
+  const delDia = t => entradasDe(p.id).some(e=>e.tipo===t&&daysBetween(e.fecha,hoy)===0);
+  const aguaHoy = entradasDe(p.id).some(e=>esAgua(e)&&daysBetween(e.fecha,hoy)===0);
+  if(aguaHoy) add(card({icon:"riego",title:"Agua al día",sub:`${p.nombre} ya está cuidada hoy.`,done:true}),true);
+  else if(st.mood==="feliz"){
+    const c=card({icon:"riego",title:`${p.nombre} está bien de agua`,sub:`En ${st.t.n.toLowerCase()}, riego cada ${st.max} días como máximo y siempre con la tierra seca.`,tag:"Al día",tagCls:"ok"});
+    c.append(fila(boton("Revisar la tierra igual","alt",()=>{ c.querySelector(".btns").remove(); c.querySelector(".msub").textContent="Mete el dedo hasta pasar la primera articulación (3–4 cm). ¿Cómo está?"; c.append(fila(boton("Seca: la regué","",()=>guardar("riego","")),boton("Aún húmeda","alt",()=>guardar("revision","humeda")))); })));
+    add(c,false);
   } else {
-    const c=card({icon:"revision",title:"Prueba del dedo",sub:"Mete el dedo hasta pasar la primera articulación (3–4 cm). ¿Cómo está la tierra?",tag:st.mood==="sed"?"+5 / +10":"¡Urgente!",tagCls:st.mood==="sed"?"coin":"due"});
-    c.append(fila(boton("Seca: la regué","",()=>guardar("riego","")), boton("Aún húmeda","alt",()=>guardar("revision","humeda"))));
-    box.append(c);
+    const c=card({icon:"revision",cls:st.mood==="sed"?"":"pink",title:"Prueba del dedo",sub:"Mete el dedo hasta pasar la primera articulación (3–4 cm). ¿Cómo está la tierra?",tag:st.mood==="sed"?"+5 / +10":"¡Urgente!",tagCls:st.mood==="sed"?"coin":"due"});
+    c.append(fila(boton("Seca: la regué","",()=>guardar("riego","")),boton("Aún húmeda","alt",()=>guardar("revision","humeda"))));
+    add(c,false);
   }
-  const lp=ultimo(e=>e.tipo==="plagas"), dp=lp?daysBetween(lp.fecha,hoy):null;
-  if (dp===null || dp>=14){
+  const lp=entradasDe(p.id).find(e=>e.tipo==="plagas"), dp=lp?daysBetween(lp.fecha,hoy):null;
+  if(dp===0) add(card({icon:"plagas",title:"Patrulla de plagas",sub:"Revisada hoy. Próxima en 2 semanas.",done:true}),true);
+  else if(dp===null||dp>=14){
     const c=card({icon:"plagas",cls:"sun",title:"Patrulla de plagas",sub:"Revisa el envés de las hojas y los brotes: hormigas, pulgones, mosquitas.",tag:"+8",tagCls:"coin"});
-    const n=document.createElement("div"); n.className="hint"; n.textContent="Si ves bichitos: algodón con alcohol o jabón potásico, lejos de Popeye y Zoe.";
-    c.append(n, fila(boton("Revisé: todo limpio","",()=>guardar("plagas","limpio")), boton("Encontré algo","alt",()=>guardar("plagas","encontré plagas"))));
-    box.append(c);
+    const n=el("div","hint"); n.textContent="Si ves bichitos: algodón con alcohol o jabón potásico, lejos de Popeye y Zoe.";
+    c.append(n,fila(boton("Todo limpio","",()=>guardar("plagas","limpio")),boton("Encontré algo","alt",()=>guardar("plagas","encontré plagas"))));
+    add(c,false);
   }
-  if (s.abono){
-    const brotes=ultimo(e=>e.tipo==="brotes"), la=ultimo(e=>e.tipo==="abono"), da=la?daysBetween(la.fecha,hoy):null;
-    if(!brotes){
+  if(st.t.crece && s.abono>0){
+    if(esCiruquis(p) && !entradasDe(p.id).some(e=>e.tipo==="brotes")){
       const c=card({icon:"brotes",cls:"pink",title:"¿Ya salieron brotes nuevos?",sub:"Ciruquis se está recuperando. Apenas veas hojitas nuevas en los nudos, retomamos el abono.",tag:"+10",tagCls:"coin"});
-      c.append(fila(boton("¡Vi brotes nuevos!","pink",()=>guardar("brotes","")))); box.append(c);
-    } else if (da===null || da>=21){
-      const c=card({icon:"abono",title:"Hora del abono",sub:"Fertilizante para floración, sobre la tierra ya húmeda. Cada 3 semanas hasta abril.",tag:"+15",tagCls:"coin"});
-      c.append(fila(boton("Listo, la aboné","",()=>guardar("abono","")))); box.append(c);
+      c.append(fila(boton("¡Vi brotes nuevos!","pink",()=>guardar("brotes",""))));
+      add(c,false);
+    } else {
+      const la=entradasDe(p.id).find(e=>e.tipo==="abono"), da=la?daysBetween(la.fecha,hoy):null;
+      if(da===0) add(card({icon:"abono",title:"Abono",sub:"Abonada hoy. ¡Vitaminas al día!",done:true}),true);
+      else if(da===null||da>=s.abono){
+        const c=card({icon:"abono",title:"Hora del abono",sub:`Fertilizante sobre la tierra ya húmeda. Cada ${Math.round(s.abono/7)} semanas en temporada.`,tag:"+15",tagCls:"coin"});
+        c.append(fila(boton("Listo, la aboné","",()=>guardar("abono","")))); add(c,false);
+      }
     }
   }
-  box.append(leccionCard());
-  box.append(datoCard());
-}
-function abrirDedo(c){
-  c.querySelector(".btns").remove();
-  c.querySelector(".msub").textContent="Mete el dedo hasta pasar la primera articulación (3–4 cm). ¿Cómo está?";
-  c.append(fila(boton("Seca: la regué","",()=>guardar("riego","")), boton("Aún húmeda","alt",()=>guardar("revision","humeda"))));
+  const lec=leccionCard(); add(lec.c,lec.done);
+  const dat=datoCard(); add(dat.c,dat.done);
+  pend.forEach((c,i)=>{ c.style.animationDelay=(i*60)+"ms"; box.append(c); }); hechas.forEach(c=>box.append(c));
+  $("missionCount").textContent=`${hechas.length} de ${hechas.length+pend.length} hechas`;
+  $("tipsTitle").textContent=`Cómo cuidar a ${p.nombre}`;
+  $("tips").innerHTML=s.tips.map((t,i)=>`<li><i>${i+1}</i><span>${esc(t)}</span></li>`).join("");
+  renderSetup();
 }
 function leccionCard(){
   const hoy=new Date();
-  if (entradas.some(e=>e.tipo==="leccion" && daysBetween(e.fecha,hoy)===0))
-    return card({icon:"leccion",cls:"pink",title:"Lección del día",sub:"¡Lección completada! Mañana Ciruquis te enseña otra cosa.",tag:"Hecho",tagCls:"ok",done:true});
+  if(entradas.some(e=>e.tipo==="leccion"&&daysBetween(e.fecha,hoy)===0)) return {done:true,c:card({icon:"leccion",title:"Lección del día",sub:"¡Completada! Mañana Ciruquis te enseña otra cosa.",done:true})};
   const vistas=new Set(entradas.filter(e=>e.tipo==="leccion"&&e.ok!==false).map(e=>e.nota));
   const pend=LESSONS.filter(l=>!vistas.has(l.id)), pool=pend.length?pend:LESSONS;
-  const L=pool[Math.floor(day(hoy)/86400000)%pool.length];
-  const c=card({icon:"leccion",cls:"pink",title:"Lección del día",sub:`${LESSONS.length-pend.length} de ${LESSONS.length} aprendidas`,tag:"+5",tagCls:"coin"});
-  const q=document.createElement("div"); q.className="q"; q.textContent=L.q;
-  const opts=document.createElement("div"); opts.className="opts";
-  L.o.forEach((t,i)=>{
-    const b=document.createElement("button"); b.type="button"; b.className="opt"; b.textContent=t; b.disabled=!db||!puedeEscribir;
-    b.onclick=()=>{
-      const ok=i===L.a;
-      opts.querySelectorAll(".opt").forEach((x,j)=>{x.disabled=true; if(j===L.a) x.classList.add("right");});
-      if(!ok) b.classList.add("wrong");
-      const ex=document.createElement("div"); ex.className="explain"; ex.textContent=(ok?"¡Correcto! ":"Casi. ")+L.e; c.append(ex);
-      setTimeout(()=>guardar("leccion",L.id,{ok}),1500);
-    };
-    opts.append(b);
-  });
-  c.append(q,opts); return c;
+  const L=pool[Math.floor(day(hoy)/864e5)%pool.length];
+  const c=card({icon:"leccion",cls:"pink",title:"Lección del día",sub:`Bugambilia · ${LESSONS.length-pend.length} de ${LESSONS.length} aprendidas`,tag:"+5",tagCls:"coin"});
+  const q=el("div","q"); q.textContent=L.q; const opts=el("div","opts");
+  L.o.forEach((t,i)=>{ const b=el("button","opt"); b.type="button"; b.textContent=t; b.disabled=!db||!puedeEscribir;
+    b.onclick=()=>{ vibrar(); const ok=i===L.a; opts.querySelectorAll(".opt").forEach((x,j)=>{ x.disabled=true; if(j===L.a) x.classList.add("right"); }); if(!ok){ b.classList.add("wrong"); vibrar([30,40,30]); }
+      const ex=el("div","explain"+(ok?"":" no")); ex.textContent=(ok?"¡Correcto! ":"Casi. ")+L.e; c.append(ex);
+      setTimeout(()=>guardar("leccion",L.id,{ok},"ciruquis"),1700); };
+    opts.append(b); });
+  c.append(q,opts); return {done:false,c};
+}
+function datoCard(){
+  const hoy=new Date(), hoyDato=entradas.find(e=>e.tipo==="dato"&&daysBetween(e.fecha,hoy)===0);
+  const vistos=new Set(entradas.filter(e=>e.tipo==="dato").map(e=>e.nota));
+  const caja=D=>{ const f=el("div","factbox"); f.innerHTML="<b></b><span></span>"; f.querySelector("b").textContent=D.t; f.querySelector("span").textContent=D.x; return f; };
+  if(hoyDato){ const D=DATOS.find(d=>d.id===hoyDato.nota); const c=card({icon:"dato",title:"Dato curioso del día",sub:"Guardado en tu álbum.",done:true}); if(D) c.append(caja(D)); return {done:true,c}; }
+  const pend=DATOS.filter(d=>!vistos.has(d.id));
+  if(!pend.length) return {done:true,c:card({icon:"dato",title:"¡Álbum completo!",sub:"Ya conoces todos los datos de la bugambilia.",done:true})};
+  const D=pend[0], c=card({icon:"dato",cls:"sun",title:"Dato curioso del día",sub:`${DATOS.length-pend.length} de ${DATOS.length} en tu álbum`,tag:"+3",tagCls:"coin"});
+  c.append(caja(D),fila(boton("¡No lo sabía!","",()=>guardar("dato",D.id,{sabia:false},"ciruquis")),boton("Ya lo sabía","alt",()=>guardar("dato",D.id,{sabia:true},"ciruquis"))));
+  return {done:false,c};
 }
 
-function datoCard(){
-  const hoy=new Date();
-  const hoyDato=entradas.find(e=>e.tipo==="dato"&&daysBetween(e.fecha,hoy)===0);
-  const vistos=new Set(entradas.filter(e=>e.tipo==="dato").map(e=>e.nota));
-  if(hoyDato){
-    const D=DATOS.find(d=>d.id===hoyDato.nota);
-    const c=card({icon:"dato",cls:"sun",title:"Dato curioso del día",sub:"Guardado en tu álbum. Mañana hay otro, Teté.",tag:"Hecho",tagCls:"ok",done:true});
-    if(D){ const f=document.createElement("div"); f.className="factbox"; f.innerHTML="<b></b><span></span>"; f.querySelector("b").textContent=D.t; f.querySelector("span").textContent=D.x; c.append(f); }
-    return c;
-  }
-  const pend=DATOS.filter(d=>!vistos.has(d.id));
-  if(!pend.length) return card({icon:"dato",cls:"sun",title:"¡Álbum completo!",sub:"Teté, ya conoces todos los datos de la bugambilia. Pronto llegan los de otra planta.",tag:"Oro",tagCls:"ok",done:true});
-  const D=pend[0];
-  const c=card({icon:"dato",cls:"sun",title:"Dato curioso del día",sub:`${DATOS.length-pend.length} de ${DATOS.length} en tu álbum`,tag:"+3",tagCls:"coin"});
-  const f=document.createElement("div"); f.className="factbox"; f.innerHTML="<b></b><span></span>"; f.querySelector("b").textContent=D.t; f.querySelector("span").textContent=D.x;
-  c.append(f, fila(boton("¡No lo sabía!","",()=>guardar("dato",D.id,{sabia:false})), boton("Ya lo sabía","alt",()=>guardar("dato",D.id,{sabia:true}))));
-  return c;
-}
-function renderCurso(){
+function renderAprender(){
   const box=$("course"); box.innerHTML="";
   const aprendidas=new Set(entradas.filter(e=>e.tipo==="leccion"&&e.ok!==false).map(e=>e.nota));
-  for(const cu of CURSOS){
-    const u=document.createElement("div"); u.className="unit"+(cu.locked?" locked":"");
-    u.innerHTML="<div><span></span><br><b></b></div><div></div>";
-    u.querySelector("span").textContent=cu.unidad; u.querySelector("b").textContent=cu.nombre;
-    box.append(u);
-    if(cu.locked){
-      const n=document.createElement("p"); n.className="sub-h"; n.style.margin="2px 0 0";
-      n.textContent="Cuando llegue otra planta a casa, pídanle a Claude que la agregue y se abre esta unidad con sus lecciones y datos.";
-      u.lastChild.innerHTML=ICON.candado; u.lastChild.style.width="24px"; box.append(n); continue;
+  const especies=[...new Set(plantas.map(p=>p.especie))];
+  if(!especies.includes("bugambilia")) especies.unshift("bugambilia");
+  especies.forEach((k,ui)=>{
+    const s=ESPECIES[k]||ESPECIES.otra, quien=plantas.filter(p=>p.especie===k).map(p=>p.nombre).join(", ");
+    const u=el("div","unit"+(k==="bugambilia"?"":" green"));
+    if(k==="bugambilia"){
+      const hechas=LESSONS.filter(l=>aprendidas.has(l.id)).length;
+      u.innerHTML=`<div><small>Unidad ${ui+1}${quien?" · "+esc(quien):""}</small><b>${esc(s.nombre)}</b></div><div class="count">${hechas}/${LESSONS.length}</div>`; box.append(u);
+      const path=el("div","path"); let marcado=false;
+      LESSONS.forEach((l,i)=>{ const done=aprendidas.has(l.id), next=!done&&!marcado; if(next) marcado=true;
+        const n=el("div","node"+(done?" done":next?" next":" lockd")); n.style.paddingLeft=[0,40,72,40][i%4]+"px";
+        n.innerHTML=`<i>${done?ICON.leccion:next?ICON.dato:ICON.candado}</i><span></span>`;
+        n.querySelector("span").textContent=done?l.q.replace(/…$/,""):next?"Siguiente: te espera en las misiones de hoy":`Lección ${i+1}`; path.append(n); });
+      box.append(path);
+    } else {
+      u.innerHTML=`<div><small>Unidad ${ui+1}${quien?" · "+esc(quien):""}</small><b>${esc(s.nombre)}</b></div><div class="count">${ICON.candado}</div>`; u.querySelector(".count svg").style.width="24px";
+      const n=el("div","soon"); n.textContent=`Las lecciones de ${s.nombre.split(" (")[0].toLowerCase()} están en camino. Pídele a Claude que las prepare. Mientras, sus consejos están en Inicio.`;
+      box.append(u,n);
     }
-    const L=cu.lecciones(), hechas=L.filter(l=>aprendidas.has(l.id)).length;
-    u.lastChild.textContent=`${hechas}/${L.length}`; u.lastChild.style.fontWeight="800";
-    const path=document.createElement("div"); path.className="path";
-    let nextMarcado=false;
-    L.forEach((l,i)=>{
-      const done=aprendidas.has(l.id), next=!done&&!nextMarcado; if(next) nextMarcado=true;
-      const n=document.createElement("div"); n.className="node"+(done?" done":next?" next":" lockd");
-      n.style.paddingLeft=[0,36,64,36][i%4]+"px";
-      n.innerHTML=`<i>${done?ICON.leccion:next?ICON.dato:ICON.candado}</i><span></span>`;
-      n.querySelector("span").textContent= done ? l.q.replace(/…$/,"") : next ? "Siguiente lección: en tus misiones de hoy" : `Lección ${i+1}`;
-      path.append(n);
-    });
-    box.append(path);
-  }
+  });
   const al=$("album"); al.innerHTML="";
   const vistos=new Set(entradas.filter(e=>e.tipo==="dato").map(e=>e.nota));
-  for(const d of DATOS){
-    if(vistos.has(d.id)){
-      const det=document.createElement("details"); det.className="fact";
-      det.innerHTML=`<summary>${ICON.dato}<span></span></summary><p></p>`;
-      det.querySelector("span").textContent=d.t; det.querySelector("p").textContent=d.x; al.append(det);
-    }
-  }
+  DATOS.filter(d=>vistos.has(d.id)).forEach(d=>{ const det=el("details","fact"); det.innerHTML=`<summary>${ICON.dato}<span></span></summary><p></p>`; det.querySelector("span").textContent=d.t; det.querySelector("p").textContent=d.x; det.ontoggle=()=>vibrar(8); al.append(det); });
   const faltan=DATOS.length-vistos.size;
-  if(faltan>0){ const l=document.createElement("div"); l.className="fact locked"; l.textContent=`${faltan} dato${faltan>1?"s":""} por descubrir. Uno nuevo cada día.`; al.append(l); }
+  if(faltan>0){ const l=el("div","fact locked"); l.textContent=`${faltan} dato${faltan>1?"s":""} por descubrir. Uno nuevo cada día.`; al.append(l); }
+  $("albumCount").textContent=`${vistos.size} de ${DATOS.length}`;
 }
 
-/* ---------- premios y tienda ---------- */
-function renderPremios(){
-  const box=$("badges"); box.innerHTML="";
-  for(const b of BADGES){
-    const {c,t}=tierDe(b), next=b.t[t];
-    const el=document.createElement("div"); el.className="badge t"+t;
-    el.innerHTML=`<div class="medal">${ICON[b.icon]}</div><b></b><small></small><div class="minibar"><i></i></div>`;
-    el.querySelector("b").textContent=b.name;
-    el.querySelector("small").textContent = next ? `${["Sin medalla","Bronce","Plata"][t]} · ${c}/${next}` : "Oro · completo";
-    el.querySelector(".minibar i").style.width = (next? Math.min(100,c/next*100) : 100)+"%";
-    el.title = next ? `Siguiente medalla: ${next} (+${TIER_MON[t]} monedas)` : "Medalla de oro";
-    box.append(el);
-  }
+function renderPremios(saldo){
+  const on=R.cur>0;
+  $("snum").textContent=R.cur; $("snum").className="snum"+(on?"":" off");
+  $("flame").innerHTML=ICON.racha; $("flame").className="flame"+(on?(R.todayActive?" live":""):" off");
+  $("slabel").textContent=R.cur===1?"día de racha":"días de racha";
+  let msg;
+  if(!on) msg="Completa una misión, la lección o el dato de hoy para encender tu racha.";
+  else if(!R.todayActive) msg=`¡Todavía no cuidas el jardín hoy! Una misión basta para no perder la racha.`;
+  else { const sig=HITOS.find(([d])=>d>R.cur); msg=sig?`¡Racha a salvo hoy! A los ${sig[0]} días ganas ${sig[1]} monedas.`:"¡Racha a salvo! Eres leyenda."; }
+  if(R.freezesLeft>0) msg+=` Tienes ${R.freezesLeft} protector${R.freezesLeft>1?"es":""}.`;
+  $("smsg").textContent=msg+` Mejor racha: ${R.best}.`;
+  const w=$("week"); w.innerHTML=""; const Ld=["D","L","M","M","J","V","S"], hoy=day(new Date());
+  for(let i=6;i>=0;i--){ const d=new Date(hoy); d.setDate(d.getDate()-i); const s=R.days[dkey(d)], t=i===0;
+    const x=el("div","wd"+(s==="on"?" on":s==="frz"?" frz":"")+(t&&s!=="on"?" today":"")); x.innerHTML=`<i>${s==="on"?ICON.racha:s==="frz"?ICON.hielo:""}</i><span>${t?"Hoy":Ld[d.getDay()]}</span>`; w.append(x); }
+  $("hitos").innerHTML=HITOS.map(([d,b])=>`<span class="hito${R.best>=d?" got":""}">${ICON.racha}${d} días · +${b}</span>`).join("");
+  const bx=$("badges"); bx.innerHTML=""; let total=0;
+  BADGES.forEach(b=>{ const {c,t}=tierDe(b), next=b.t[t]; total+=t;
+    const x=el("div","badge t"+t); x.innerHTML=`<div class="medal">${ICON[b.icon]}</div><b></b><small></small><div class="minibar"><i></i></div>`;
+    x.querySelector("b").textContent=b.name; x.querySelector("small").textContent=next?`${["Sin medalla","Bronce","Plata"][t]} · ${c}/${next}`:"Oro · completa";
+    x.querySelector(".minibar i").style.width=(next?Math.min(100,c/next*100):100)+"%"; bx.append(x); });
+  $("badgeCount").textContent=`${total} de ${BADGES.length*3}`;
+  $("saldoNote").innerHTML=`${COIN_SVG.replace("<svg ",'<svg style="width:16px;height:16px;vertical-align:-3px" ')} ${Math.max(0,saldo)} disponibles`;
+  const hayC=plantas.some(esCiruquis); $("tiendaH").hidden=!hayC; $("shop").hidden=!hayC;
+  const sh=$("shop"); sh.innerHTML="";
+  SHOP.forEach(s=>{ const owned=tiene(s.id), on=puesto(s.id);
+    const x=el("article","item"+(owned&&!s.consumible?" owned":"")); x.innerHTML=`<div class="thumb">${s.svg}</div><b></b><p></p><div class="price">${COIN_SVG}<span>${s.price}</span></div>`;
+    x.querySelector("b").textContent=s.name; x.querySelector("p").textContent=s.desc; let b;
+    if(s.consumible){ const lleno=R.freezesLeft>=2; b=boton(lleno?"Tienes 2":"Comprar","gold",(e,bb)=>comprar(s,bb)); b.disabled=b.disabled||lleno||saldo<s.price; }
+    else if(!owned){ b=boton(saldo<s.price?`Faltan ${s.price-saldo}`:"Comprar","gold",(e,bb)=>comprar(s,bb)); b.disabled=b.disabled||saldo<s.price; }
+    else { x.querySelector(".price").innerHTML='<span style="color:var(--bract)">Es suya</span>'; b=boton(on?"Quitárselo":"Ponérselo",on?"alt":"pink",()=>alternar(s.id)); }
+    x.append(b); sh.append(x); });
 }
-function renderTienda(saldo){
-  const box=$("shop"); box.innerHTML="";
-  for(const s of SHOP){
-    const owned=tiene(s.id), on=puesto(s.id);
-    const el=document.createElement("article"); el.className="item"+(owned&&!s.consumible?" owned":"");
-    el.innerHTML=`<div class="thumb">${s.svg}</div><b></b><p></p><div class="price">${COIN_SVG}<span>${s.price}</span></div>`;
-    el.querySelector("b").textContent=s.name; el.querySelector("p").textContent=s.desc;
-    let btn;
-    if(s.consumible){
-      const lleno=R.freezesLeft>=2;
-      btn=boton(lleno?"Tienes 2":"Comprar","gold",()=>comprar(s,btn));
-      btn.disabled = btn.disabled || lleno || saldo<s.price;
-    } else if(!owned){
-      btn=boton(saldo<s.price?`Faltan ${s.price-saldo}`:"Comprar","gold",()=>comprar(s,btn));
-      btn.disabled = btn.disabled || saldo<s.price;
-    } else {
-      el.querySelector(".price").innerHTML='<span style="color:var(--bract)">Es suya</span>';
-      btn=boton(on?"Quitárselo":"Ponérselo",on?"alt":"pink",()=>alternar(s.id));
-    }
-    el.append(btn); box.append(el);
-  }
+async function comprar(s,b){
+  if(!b.dataset.sure){ b.dataset.sure="1"; b.textContent=`¿Seguro? ${s.price}`; setTimeout(()=>{ if(b.isConnected&&b.dataset.sure){ delete b.dataset.sure; b.textContent="Comprar"; } },3500); return; }
+  b.disabled=true;
+  try{ if(monedas()<s.price){ toast("No alcanzan las monedas todavía."); return; }
+    await db.collection("compras").add({item:s.id,costo:s.price,fecha:new Date().toISOString(),quien:miId});
+    if(!s.consumible) await guardarEquipo(conExclusivos([...(equipado||compras.map(c=>c.item)),s.id],s.id));
+    monedasFx(); confeti(24); toast(s.consumible?"Protector de racha listo":`¡Le regalaste ${s.name.toLowerCase()} a Ciruquis!`);
+  }catch(_){ toast("No se pudo comprar. Intenta de nuevo."); b.disabled=false; }
 }
-async function comprar(s,btn){
-  if(!btn.dataset.sure){ btn.dataset.sure="1"; btn.textContent=`¿Seguro? ${s.price}`; setTimeout(()=>{ if(btn.isConnected&&btn.dataset.sure){ delete btn.dataset.sure; btn.textContent="Comprar"; } },3500); return; }
-  btn.disabled=true;
-  try{
-    if(monedas()<s.price){ toast("No alcanzan las monedas todavía."); return; }
-    await db.collection("compras").add({item:s.id, costo:s.price, fecha:new Date().toISOString(), quien:miId||null});
-    if(!s.consumible) await guardarEquipo(conExclusivos([...(equipado||compras.map(c=>c.item)), s.id], s.id));
-    monedasFx(); toast(s.consumible?"Protector de racha listo":`¡Le regalaste ${s.name.toLowerCase()} a Ciruquis!`);
-  }catch(_){ toast("No se pudo comprar. Intenta de nuevo."); btn.disabled=false; }
-}
-const COLORES = SHOP.filter(x=>x.grupo==="color").map(x=>x.id);
-function conExclusivos(lista,id){ return COLORES.includes(id) ? lista.filter(x=>!COLORES.includes(x)||x===id) : lista; }
-async function alternar(id){
-  const base = equipado || compras.map(c=>c.item);
-  const nuevo = base.includes(id) ? base.filter(x=>x!==id) : conExclusivos([...base,id],id);
-  try{ await guardarEquipo(nuevo); }catch(_){ toast("No se pudo cambiar. Intenta de nuevo."); }
-}
+function conExclusivos(lista,id){ return COLORES.includes(id)?lista.filter(x=>!COLORES.includes(x)||x===id):lista; }
+async function alternar(id){ const base=equipado||compras.map(c=>c.item); try{ await guardarEquipo(base.includes(id)?base.filter(x=>x!==id):conExclusivos([...base,id],id)); }catch(_){ toast("No se pudo cambiar. Intenta de nuevo."); } }
 function guardarEquipo(lista){ return db.collection("ajustes").doc("ciruquis").set({equipado:[...new Set(lista)]}); }
 
-/* ---------- equipo y diario ---------- */
-function nombreDe(id){ if(!id) return "Claude"; const p=perfiles[id]; return (p&&p.name)? p.name.split(" ")[0] : (id===miId?"Tú":"Alguien"); }
-function renderEquipo(){
-  const tot={}; for(const e of entradas){ const k=e.quien||"_"; tot[k]=(tot[k]||0)+PTS(e); }
-  const box=$("team"); box.innerHTML="";
-  const ks=Object.keys(tot).sort((a,b)=>tot[b]-tot[a]);
-  if(!ks.length){ box.innerHTML='<div class="member"><span>Aún no hay puntos. ¡El primer cuidado los estrena!</span></div>'; return; }
-  for(const k of ks){
-    const d=document.createElement("div"); d.className="member";
-    const b=document.createElement("b"); b.textContent=tot[k];
-    const s=document.createElement("span"); s.textContent=(k==="_"?"Anotados por Claude":nombreDe(k))+" · puntos";
-    d.append(b,s); box.append(d);
-  }
-}
-function renderLog(){
+function nombreDe(id){ if(!id) return "Claude"; const p=personas[id]; return p?((p.apodo||"").trim()||(p.nombre||"").split(" ")[0]||"Alguien"):(id===miId?"Tú":"Alguien"); }
+function renderDiario(){
+  const tot={}; entradas.forEach(e=>{ const k=e.quien||"_"; tot[k]=(tot[k]||0)+PTS(e); });
+  Object.keys(personas).forEach(k=>{ if(!(k in tot)) tot[k]=0; });
+  const tm=$("team"); tm.innerHTML="";
+  Object.keys(tot).sort((a,b)=>tot[b]-tot[a]).forEach(k=>{ const m=el("div","member");
+    m.innerHTML=(k==="_"?`<span class="av" style="width:42px;height:42px;font-size:18px">C</span>`:avatarHTML(personas[k],42))+`<div><b>${tot[k]}</b><span>${esc(k==="_"?"Anotados por Claude":nombreDe(k))}</span></div>`; tm.append(m); });
+  const fl=$("filters"); fl.innerHTML="";
+  [["todas","Todas"],...plantas.map(p=>[p.id,p.nombre])].forEach(([id,n])=>{ const b=el("button","fchip"+(filtro===id?" on":"")); b.type="button"; b.textContent=n; b.onclick=()=>{ vibrar(); filtro=id; mostrar=12; renderDiario(); }; fl.append(b); });
   const ul=$("log"); ul.innerHTML="";
-  if(!db){ ul.innerHTML='<li class="empty">El diario no está disponible en esta vista. Ábrelo desde Claude con tu cuenta.</li>'; return; }
-  if(!entradas.length){ ul.innerHTML='<li class="empty">Todavía no hay cuidados. Completa una misión y aparecerá aquí.</li>'; return; }
-  for(const e of entradas.slice(0,mostrar)){
-    const li=document.createElement("li"), f=new Date(e.fecha);
-    li.innerHTML=`<div class="ico">${ICON[e.tipo]||ICON.nota}</div><div class="txt"><div class="t"></div><div class="m"></div></div><span class="x"></span>`;
-    li.querySelector(".t").textContent=TXT[e.tipo]||"Nota";
+  const lista=entradas.filter(e=>filtro==="todas"||plantaDe(e)===filtro);
+  if(!lista.length){ ul.innerHTML='<li class="empty">Todavía no hay cuidados aquí. Completa una misión y aparecerá.</li>'; return; }
+  lista.slice(0,mostrar).forEach(e=>{
+    const li=el("li"), f=new Date(e.fecha), pl=plantas.find(p=>p.id===plantaDe(e));
+    li.innerHTML=`<div class="ico">${ICON[e.tipo]||ICON.nota}</div><div class="txt"><div class="t"></div><div class="m"></div></div><span class="x">+${MON(e)}</span>`;
+    li.querySelector(".t").textContent=(TXT[e.tipo]||"Nota")+(pl&&plantas.length>1&&!["leccion","dato"].includes(e.tipo)?` · ${pl.nombre}`:"");
     li.querySelector(".m").textContent=f.toLocaleDateString("es-PE",{weekday:"short",day:"numeric",month:"short"})+" · "+nombreDe(e.quien);
-    const extra = e.tipo==="dato" ? (DATOS.find(d=>d.id===e.nota)||{}).t : e.tipo==="revision"&&e.nota==="humeda"?"Tierra aún húmeda" : e.tipo==="leccion"?(e.ok===false?"Respuesta para repasar":"Respuesta correcta") : (e.nota||"");
-    if(extra){ const n=document.createElement("div"); n.className="n"; n.textContent=extra; li.querySelector(".txt").append(n); }
-    li.querySelector(".x").textContent="+"+MON(e)+" mon.";
-    if(puedeEscribir){
-      const d=document.createElement("button"); d.type="button"; d.className="del"; d.textContent="Borrar";
-      d.onclick=()=>{
-        if(d.dataset.sure){ db.collection("registro").doc(e.id).delete().catch(()=>toast("No se pudo borrar. Intenta de nuevo.")); }
-        else { d.dataset.sure="1"; d.textContent="¿Seguro?"; setTimeout(()=>{ if(d.isConnected){ delete d.dataset.sure; d.textContent="Borrar"; } },3000); }
-      };
-      li.append(d);
-    }
+    const extra=e.tipo==="dato"?(DATOS.find(d=>d.id===e.nota)||{}).t:e.tipo==="revision"&&e.nota==="humeda"?"Tierra aún húmeda":e.tipo==="leccion"?(e.ok===false?"Respuesta para repasar":"Respuesta correcta"):(e.nota||"");
+    if(extra){ const n=el("div","n"); n.textContent=extra; li.querySelector(".txt").append(n); }
+    if(puedeEscribir){ const d=el("button","del"); d.type="button"; d.textContent="Borrar";
+      d.onclick=()=>{ if(d.dataset.sure){ db.collection("registro").doc(e.id).delete().catch(()=>toast("No se pudo borrar.")); } else { d.dataset.sure="1"; d.textContent="¿Seguro?"; setTimeout(()=>{ if(d.isConnected){ delete d.dataset.sure; d.textContent="Borrar"; } },3000); } };
+      li.append(d); }
     ul.append(li);
-  }
-  if(entradas.length>mostrar){ const b=document.createElement("button"); b.className="more"; b.type="button"; b.textContent="Ver más"; b.onclick=()=>{mostrar+=10; renderLog();}; const li=document.createElement("li"); li.style.padding="0"; li.append(b); ul.append(li); }
+  });
+  if(lista.length>mostrar){ const li=el("li"); li.style.padding="0"; const b=el("button","more"); b.type="button"; b.textContent="Ver más"; b.onclick=()=>{ mostrar+=15; renderDiario(); }; li.append(b); ul.append(li); }
 }
 
-/* ---------- render ---------- */
+function renderPerfil(saldo){
+  const p=yo();
+  $("avatarXL").innerHTML=avatarHTML(p,110);
+  $("profName").textContent=apodo();
+  const desde=p.desde?new Date(p.desde):null;
+  $("profSub").textContent=[p.nombre&&p.nombre!==apodo()?p.nombre:"", desde?`En el jardín desde ${MESES[desde.getMonth()]} ${desde.getFullYear()}`:""].filter(Boolean).join(" · ");
+  const mios=entradas.filter(e=>e.quien===miId).length, medallas=BADGES.reduce((s,b)=>s+tierDe(b).t,0);
+  const sb=(ico,col,v,t)=>`<div class="sbox"><span class="si" style="color:${col}">${ico}</span><div><b>${v}</b><span>${t}</span></div></div>`;
+  $("statgrid").innerHTML=sb(ICON.racha,"var(--sun)",R.cur,"días de racha")+sb(ICON.racha,"var(--bract)",R.best,"mejor racha")+sb(COIN_SVG,"var(--coin)",Math.max(0,saldo),"monedas")+sb(ICON.medalla,"var(--gold)",medallas,"medallas")+sb(ICON.maceta,"var(--leaf)",plantas.length,plantas.length===1?"planta":"plantas")+sb(ICON.corazon,"var(--bract)",mios,"cuidados tuyos");
+  const gl=$("gardenList"); gl.innerHTML="";
+  plantas.forEach(pl=>{ const st=estadoPlanta(pl), r=el("button","row"); r.type="button";
+    r.innerHTML=`<span class="ri">${miniDe(pl)}</span><span class="rt"><b>${esc(pl.nombre)}</b><span>${esc(esp(pl).nombre)} · Nivel ${nivelDe(pl).i+1}</span></span><span class="mood-pill ${st.mood}">${{feliz:"Feliz",sed:"Sed",agua:"Sedienta",rescate:"¡Rescate!"}[st.mood]}</span><i class="chev"></i>`;
+    r.onclick=()=>{ vibrar(); formPlanta(pl); }; gl.append(r); });
+  const se=$("settings"); se.innerHTML="";
+  const fila2=(ico,t,sub,fn,tag)=>{ const r=el(fn&&typeof fn==="string"?"a":"button","row"); if(typeof fn==="string"){ r.href=fn; r.target="_blank"; r.rel="noopener"; } else { r.type="button"; if(fn) r.onclick=()=>{ vibrar(); fn(); }; else r.disabled=true; }
+    r.innerHTML=`<span class="ri sm">${ico}</span><span class="rt"><b>${esc(t)}</b>${sub?`<span>${esc(sub)}</span>`:""}</span>${tag||'<i class="chev"></i>'}`; se.append(r); };
+  const perm="Notification" in window?Notification.permission:"unsupported";
+  if(perm==="granted") fila2(ICON.campana,"Avisos de Ciruquis","Activados: te avisa cuando una planta tiene sed o tu racha peligra",null,'<span class="tag ok">Activos</span>');
+  else if(perm==="denied") fila2(ICON.campana,"Avisos de Ciruquis","Bloqueados. Actívalos en los ajustes del celular para esta app.",null,'<span class="tag due">Apagados</span>');
+  else if(messaging) fila2(ICON.campana,"Activar avisos","Solo cuando una planta tenga sed o tu racha esté en peligro",()=>activarAvisos());
+  else fila2(ICON.campana,"Avisos","En iPhone, instala la app en la pantalla de inicio para activarlos",null,'<span class="tag wait">—</span>');
+  if(installEvt&&!esStandalone()) fila2(ICON.instalar,"Instalar en el celular","Queda en tu pantalla de inicio como cualquier app",()=>instalar());
+  fila2(ICON.libro,"Guía de cuidados de la bugambilia","Se abre en Claude","https://claude.ai/artifact/Hnr58J6AW1dNxvcGsDxsVa");
+  fila2(ICON.salir,"Cerrar sesión","",()=>salir());
+}
+
+/* ---------- render general ---------- */
 function render(){
+  if(!plantas.find(p=>p.id===sel) && plantas[0]){ sel=plantas[0].id; LS.set("planta",sel); ciruquisMontada=false; }
   R=calcularRacha();
-  const st=estado(), xp=entradas.reduce((s,e)=>s+PTS(e),0), lv=nivel(xp), saldo=monedas();
-  $("coins").textContent=Math.max(0,saldo);
-  renderRacha();
-  dibujarCiruquis(st.mood, lv.i); moverReloj(); $("abu").textContent=horaAbuelita();
-  const [a,b]=mensaje(st); const bub=$("bubble"); bub.innerHTML=""; bub.append(a); const sm=document.createElement("small"); sm.textContent=b; bub.append(sm);
-  const pill=$("moodPill"); pill.className="mood-pill "+st.mood; pill.textContent={feliz:"Feliz",sed:"Con un poco de sed",agua:"Sedienta",rescate:"Necesita rescate"}[st.mood];
-  $("levelName").textContent="Nivel "+(lv.i+1)+" · "+lv.name;
-  $("levelNext").textContent= lv.nxt? `${xp} / ${lv.nxt} pts` : `${xp} pts`;
-  requestAnimationFrame(()=>{$("levelBar").style.width=lv.pct+"%";});
-  const tiers=BADGES.reduce((s,b)=>s+tierDe(b).t,0);
+  const saldo=monedas(), p=planta(), lv=nivelDe(p), tiers=BADGES.reduce((s,b)=>s+tierDe(b).t,0);
+  renderHeader(saldo); renderInicio(); renderAprender(); renderPremios(saldo); renderDiario(); renderPerfil(saldo);
   if(cargado){
-    if(lv.i>prev.level){ toast(`¡Subió de nivel! Ciruquis ahora es ${lv.name}`); confeti(40); $("buga").classList.add("pop"); }
-    else if(tiers>prev.tiers){ setTimeout(()=>{toast("¡Nueva medalla! Mira tus premios"); monedasFx();},900); }
-    else { const h=HITOS.find(([d])=>d===R.cur); if(h && R.cur>prev.streak) setTimeout(()=>{toast(`¡${h[0]} días de racha! +${h[1]} monedas`); monedasFx();},900); }
+    if(prev.level>=0 && lv.i>prev.level){ toast(`¡Subió de nivel! ${p.nombre} ahora es ${lv.name}`); confeti(40); $("buga").classList.add("pop-b"); }
+    else if(prev.tiers>=0 && tiers>prev.tiers) setTimeout(()=>{ toast("¡Nueva medalla! Mírala en Premios"); monedasFx(); },900);
+    else { const h=HITOS.find(([d])=>d===R.cur); if(h && R.cur>prev.streak) setTimeout(()=>{ toast(`¡${h[0]} días de racha! +${h[1]} monedas`); monedasFx(); },900); }
   }
   prev={level:lv.i,tiers,streak:R.cur};
-  renderMisiones(); renderCurso(); renderPremios(); renderTienda(saldo); renderEquipo(); renderLog();
+  if(!rotTimer || rotPlanta!==sel){ rotPlanta=sel; pintarRot(0,false); reiniciarRot(); }
 }
 
 /* ---------- efectos ---------- */
-function centro(){ const r=$("buga").getBoundingClientRect(); return {x:r.left+r.width/2,y:r.top+r.height*0.35,w:r.width}; }
-function gotas(){ const c=centro(); for(let i=0;i<14;i++){ const d=document.createElement("div"); d.className="drop"; d.style.left=(c.x-c.w*0.3+Math.random()*c.w*0.6)+"px"; d.style.top=(c.y-90+Math.random()*30)+"px"; d.style.animationDelay=(Math.random()*0.5)+"s"; $("fx").append(d); setTimeout(()=>d.remove(),1600);} }
-function lanzar(cls,n,origen){ for(let i=0;i<n;i++){ const p=document.createElement("div"); p.className=cls; p.style.left=origen.x+"px"; p.style.top=origen.y+"px"; const ang=Math.random()*Math.PI*2, dist=80+Math.random()*120; p.style.setProperty("--dx",Math.cos(ang)*dist+"px"); p.style.setProperty("--dy",(Math.sin(ang)*dist-40)+"px"); p.style.setProperty("--r",(Math.random()*540-270)+"deg"); if(cls==="petal"&&i%3===0) p.style.background="var(--sun)"; $("fx").append(p); setTimeout(()=>p.remove(),1500);} }
-const confeti = (n=22) => lanzar("petal",n,centro());
+function centro(){ const r=$("buga").getBoundingClientRect(); return {x:r.left+r.width/2,y:r.top+r.height*.35,w:r.width||200}; }
+function gotas(){ const c=centro(); for(let i=0;i<14;i++){ const d=el("div","drop"); d.style.left=(c.x-c.w*.3+Math.random()*c.w*.6)+"px"; d.style.top=(c.y-90+Math.random()*30)+"px"; d.style.animationDelay=(Math.random()*.5)+"s"; $("fx").append(d); setTimeout(()=>d.remove(),1600); } }
+function lanzar(cls,n,o){ for(let i=0;i<n;i++){ const p=el("div",cls); p.style.left=o.x+"px"; p.style.top=o.y+"px"; const a=Math.random()*Math.PI*2, d=80+Math.random()*120; p.style.setProperty("--dx",Math.cos(a)*d+"px"); p.style.setProperty("--dy",(Math.sin(a)*d-40)+"px"); p.style.setProperty("--r",(Math.random()*540-270)+"deg"); if(cls==="petal"&&i%3===0) p.style.background="var(--sun)"; $("fx").append(p); setTimeout(()=>p.remove(),1500); } }
+const confeti=(n=22)=>lanzar("petal",n,tab==="inicio"?centro():{x:innerWidth/2,y:innerHeight/2});
 function monedasFx(){ const r=$("coins").getBoundingClientRect(); lanzar("coinfx",10,{x:r.left+r.width/2,y:r.top+r.height/2}); }
-let tt; function toast(t){ const el=$("toast"); el.textContent=t; el.classList.add("show"); clearTimeout(tt); tt=setTimeout(()=>el.classList.remove("show"),2800); }
+function corazones(){ const c=centro(); for(let i=0;i<4;i++){ const h=el("div","heart",ICON.corazon); h.style.left=(c.x-20+Math.random()*40)+"px"; h.style.top=(c.y+20)+"px"; h.style.setProperty("--dx",(Math.random()*80-40)+"px"); h.style.animationDelay=(i*.12)+"s"; document.body.append(h); setTimeout(()=>h.remove(),1600); } }
+let tt; function toast(t,tipo){
+  if(!tipo) tipo=/^\+\d+ monedas/.test(t)?"coin":/^No se pudo|^Se perdió|bloquead|no tiene permiso|solo puede/i.test(t)?"err":"ok";
+  const ico={ok:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',coin:COIN_SVG,err:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 7v6M12 17h.01"/><circle cx="12" cy="12" r="9.5"/></svg>'}[tipo]||ICON.dato;
+  const e=$("toast"); e.className="toast t-"+tipo; e.innerHTML=`<span class="ti2">${ico}</span><span class="tx"></span>`; e.querySelector(".tx").textContent=t;
+  void e.offsetWidth; e.classList.add("show"); clearTimeout(tt); tt=setTimeout(()=>e.classList.remove("show"),3000);
+}
 
-const GRACIAS={dato:"¡Nuevo dato en tu álbum, Teté!",riego:"¡Glu glu! Ciruquis te lo agradece",revision:"Anotado: tierra húmeda, sin regar",plagas:"Patrulla completada",abono:"¡Vitaminas para Ciruquis!",brotes:"¡Qué emoción, brotes nuevos!",leccion:"Lección completada",poda:"Poda anotada"};
-async function guardar(tipo,nota,extra={}){
+async function guardar(tipo,nota,extra={},plantaId){
   if(!db) return;
-  const e={tipo,nota:nota||"",fecha:new Date().toISOString(),quien:miId||null,...extra};
+  const pid=plantaId||sel, pl=plantas.find(p=>p.id===pid)||planta();
+  const e={tipo,nota:nota||"",fecha:new Date().toISOString(),quien:miId||null,plantaId:pid,...extra};
+  const gracias={dato:"Nuevo dato en tu álbum",riego:`¡Glu glu! ${pl.nombre} te lo agradece`,revision:"Anotado: tierra húmeda, sin regar",plagas:"Patrulla completada",abono:`¡Vitaminas para ${pl.nombre}!`,brotes:"¡Qué emoción, brotes nuevos!",leccion:"Lección completada",poda:"Poda anotada"};
   try{
+    vibrar([15,30,15]);
     await db.collection("registro").add(e);
     if(tipo==="riego") gotas(); else confeti();
-    monedasFx();
-    toast(`+${MON(e)} monedas · ${GRACIAS[tipo]||"Guardado"}`);
+    monedasFx(); toast(`+${MON(e)} moneda${MON(e)===1?"":"s"} · ${gracias[tipo]||"Guardado"}`,"coin");
   }catch(err){
-    if(err&&(err.code==="permission-denied")){ puedeEscribir=false; toast("Tu cuenta solo puede ver a Ciruquis."); render(); }
-    else toast("No se pudo guardar. Revisa la conexión e intenta de nuevo.");
+    if(err&&err.code==="permission-denied"){ puedeEscribir=false; toast("Tu cuenta solo puede ver el jardín."); render(); }
+    else toast("No se pudo guardar. Revisa la conexión.");
   }
 }
 
-
-/* ---------- semilla: historial traído del registro en Claude ---------- */
-const SEMILLA = [
-  {id:"riego-2026-10-30", tipo:"riego", nota:"", fecha:"2026-10-30T17:00:00.000Z", quien:null},
-  {id:"riego-2026-11-13", tipo:"riego", nota:"Riego a fondo después de 2 semanas sin agua; hojas caídas y sin brácteas.", fecha:"2026-11-13T17:00:00.000Z", quien:null},
-  {id:"poda-2026-11-13", tipo:"poda", nota:"Cortada la rama con hojas negras (quemada junto al vidrio) y aflojada la cinta azul de la base del tronco.", fecha:"2026-11-13T18:00:00.000Z", quien:null},
-  {id:"riego-2026-11-17", tipo:"riego", nota:"", fecha:"2026-11-17T23:00:00.000Z", quien:null}
-];
-async function sembrar(){
-  const m=db.collection("ajustes").doc("migracion");
-  const s=await m.get();
-  if(s.exists) return;
-  const b=db.batch();
-  SEMILLA.forEach(({id,...d})=>b.set(db.collection("registro").doc(id),d));
-  b.set(m,{hecho:new Date().toISOString()});
-  await b.commit();
-}
-
-/* ---------- avisos (Firebase Cloud Messaging) e instalación ---------- */
-const CFG = self.CIRUQUIS_CONFIG;
+/* ---------- avisos e instalación ---------- */
+const CFG=self.CIRUQUIS_CONFIG;
 let swReg=null, installEvt=null, messaging=null;
-const esStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone;
-window.addEventListener("beforeinstallprompt", e=>{ e.preventDefault(); installEvt=e; renderSetup(); });
-window.addEventListener("appinstalled", ()=>{ installEvt=null; toast("¡Ciruquis ya vive en tu celular!"); renderSetup(); });
-
+const esStandalone=()=>matchMedia("(display-mode: standalone)").matches||navigator.standalone;
+window.addEventListener("beforeinstallprompt",e=>{ e.preventDefault(); installEvt=e; if(cargado) render(); });
+window.addEventListener("appinstalled",()=>{ installEvt=null; toast("¡El jardín ya vive en tu celular!"); if(cargado) render(); });
+async function instalar(){ if(!installEvt) return; installEvt.prompt(); await installEvt.userChoice; installEvt=null; render(); }
 async function registrarToken(pedir){
-  if(!messaging || !swReg || !("Notification" in window)) return false;
-  if(pedir){ const p=await Notification.requestPermission(); if(p!=="granted"){ renderSetup(); return false; } }
+  if(!messaging||!swReg||!("Notification" in window)) return false;
+  if(pedir){ const p=await Notification.requestPermission(); if(p!=="granted") return false; }
   if(Notification.permission!=="granted") return false;
-  try{
-    const token=await messaging.getToken({vapidKey:CFG.vapidKey, serviceWorkerRegistration:swReg});
-    if(token){ await db.collection("tokens").doc(token).set({uid:miId, creado:new Date().toISOString(), agente:navigator.userAgent.slice(0,120)}); }
-    return !!token;
-  }catch(e){ console.warn("token", e); return false; }
+  try{ const token=await messaging.getToken({vapidKey:CFG.vapidKey,serviceWorkerRegistration:swReg});
+    if(token) await db.collection("tokens").doc(token).set({uid:miId,creado:new Date().toISOString(),agente:navigator.userAgent.slice(0,120)});
+    return !!token; }catch(e){ console.warn("token",e); return false; }
 }
+async function activarAvisos(){ const ok=await registrarToken(true); if(ok){ toast("¡Listo! Te avisaré cuando me necesites"); confeti(); } else if(Notification.permission==="denied") toast("Los avisos quedaron bloqueados. Puedes activarlos en los ajustes del celular."); render(); }
 function renderSetup(){
   const box=$("setup"), btns=$("setupBtns"); btns.innerHTML="";
-  const permiso = "Notification" in window ? Notification.permission : "unsupported";
-  if(!esStandalone() && installEvt){
-    box.hidden=false; $("setupTitle").textContent="Llévame en tu celular, Teté";
-    $("setupText").textContent="Instálame y quedo en tu pantalla de inicio, como cualquier app.";
-    btns.append(boton("Instalar Ciruquis","plum",async()=>{ installEvt.prompt(); await installEvt.userChoice; installEvt=null; renderSetup(); }));
-    btns.lastChild.disabled=false; return;
-  }
-  if(permiso==="default" && messaging){
-    box.hidden=false; $("setupTitle").textContent="Déjame avisarte, Teté";
-    $("setupText").textContent="Te mando un mensajito solo cuando tenga sed o tu racha esté en peligro. Nada más.";
-    btns.append(boton("Activar avisos","plum",async()=>{ const ok=await registrarToken(true); if(ok){ toast("¡Listo! Te avisaré cuando te necesite"); confeti(); } renderSetup(); }));
-    btns.lastChild.disabled=false; return;
-  }
-  if(permiso==="denied"){
-    box.hidden=false; $("setupTitle").textContent="Los avisos están apagados";
-    $("setupText").textContent="Para encenderlos: mantén presionado el ícono de Ciruquis → Información de la app → Notificaciones → Permitir.";
-    return;
-  }
+  const perm="Notification" in window?Notification.permission:"unsupported", omit=LS.get("omitir",{});
+  const mostrar=(art,t,txt,accion,fn,key)=>{ box.hidden=false; $("setupArt").innerHTML=art; $("setupTitle").textContent=t; $("setupText").textContent=txt;
+    const a=boton(accion,"plum",fn); a.disabled=false; const n=boton("Ahora no","alt",()=>{ omit[key]=Date.now(); LS.set("omitir",omit); box.hidden=true; }); n.disabled=false; btns.append(n,a); };
+  const reciente=k=>omit[k]&&Date.now()-omit[k]<3*864e5;
+  if(!esStandalone()&&installEvt&&!reciente("instalar")) return mostrar(ICON.instalar,"Llévame en tu celular","Instálame y quedo en tu pantalla de inicio, como cualquier app.","Instalar",instalar,"instalar");
+  if(perm==="default"&&messaging&&swReg&&!reciente("avisos")) return mostrar(ICON.campana,`¿Te aviso cuando te necesite?`,"Solo cuando una planta tenga sed o tu racha esté en peligro. Nada más.","Activar avisos",activarAvisos,"avisos");
   box.hidden=true;
 }
 
+/* ---------- semilla y migración ---------- */
+const SEMILLA=[
+  {id:"riego-2026-10-30",tipo:"riego",nota:"",fecha:"2026-10-30T17:00:00.000Z",quien:null},
+  {id:"riego-2026-11-13",tipo:"riego",nota:"Riego a fondo después de 2 semanas sin agua; hojas caídas y sin brácteas.",fecha:"2026-11-13T17:00:00.000Z",quien:null},
+  {id:"poda-2026-11-13",tipo:"poda",nota:"Cortada la rama con hojas negras (quemada junto al vidrio) y aflojada la cinta azul de la base del tronco.",fecha:"2026-11-13T18:00:00.000Z",quien:null},
+  {id:"riego-2026-11-17",tipo:"riego",nota:"",fecha:"2026-11-17T23:00:00.000Z",quien:null}
+];
+async function sembrar(){
+  const m=db.collection("ajustes").doc("migracion"), s=await m.get();
+  if(!s.exists){ const b=db.batch(); SEMILLA.forEach(({id,...d})=>b.set(db.collection("registro").doc(id),d)); b.set(m,{hecho:new Date().toISOString()}); await b.commit(); }
+  const c=db.collection("plantas").doc("ciruquis"), cs=await c.get();
+  if(!cs.exists) await c.set({nombre:"Ciruquis",especie:"bugambilia",color:"#7A2457",desde:"2026-10-23",orden:0,creada:new Date().toISOString()});
+}
+
 /* ---------- arranque ---------- */
-render();
 firebase.initializeApp(CFG.firebase);
 const auth=firebase.auth();
 db=firebase.firestore();
 db.enablePersistence({synchronizeTabs:true}).catch(()=>{});
 try{ if(firebase.messaging.isSupported()) messaging=firebase.messaging(); }catch(_){ messaging=null; }
-if("serviceWorker" in navigator){
-  navigator.serviceWorker.register("sw.js").then(r=>{ swReg=r; renderSetup(); if(miId) registrarToken(false); }).catch(e=>console.warn("sw",e));
-}
+if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js").then(r=>{ swReg=r; if(miId){ registrarToken(false); render(); } }).catch(e=>console.warn("sw",e)); }
 if(messaging) messaging.onMessage(p=>{ const d=p.data||{}; toast(d.body||d.title||"Ciruquis te habla"); });
+setInterval(()=>{ moverReloj(); },60000);
+irA(location.hash.slice(1)||"inicio",{scroll:false});
 
-function mostrarLogin(msg){
-  $("login").hidden=false;
-  $("loginErr").hidden=!msg; $("loginErr").textContent=msg||"";
-  $("salirLogin").hidden=!msg; $("gbtn").hidden=!!msg;
-}
+function mostrarLogin(msg){ $("login").hidden=false; $("loginErr").hidden=!msg; $("loginErr").textContent=msg||""; $("salirLogin").hidden=!msg; $("gbtn").hidden=!!msg; }
 $("gbtn").onclick=async()=>{
   const p=new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({prompt:"select_account"});
   try{ await auth.signInWithPopup(p); }
-  catch(e){
-    if(["auth/popup-blocked","auth/operation-not-supported-in-this-environment","auth/cancelled-popup-request"].includes(e.code)) auth.signInWithRedirect(p);
-    else if(e.code!=="auth/popup-closed-by-user") mostrarLogin("No se pudo entrar. Revisa tu conexión e intenta otra vez.");
-  }
+  catch(e){ if(["auth/popup-blocked","auth/operation-not-supported-in-this-environment","auth/cancelled-popup-request"].includes(e.code)) auth.signInWithRedirect(p);
+    else if(e.code!=="auth/popup-closed-by-user") mostrarLogin("No se pudo entrar. Revisa tu conexión e intenta otra vez."); }
 };
 const salir=()=>auth.signOut().then(()=>location.reload());
-$("salir").onclick=salir; $("salirLogin").onclick=salir;
+$("salirLogin").onclick=salir;
+$("editProfile").onclick=()=>{ vibrar(); formPerfil(); };
+$("avatarBtn").onclick=()=>{ vibrar(); $("photoInput").click(); };
+$("addPlantBtn2").onclick=()=>{ vibrar(); formPlanta(); };
 
 let arrancado=false;
 auth.onAuthStateChanged(async u=>{
   if(!u){ mostrarLogin(); return; }
-  miId=u.uid;
+  miId=u.uid; miEmail=(u.email||"").toLowerCase();
   try{
-    await db.collection("personas").doc(u.uid).set({nombre:u.displayName||"", foto:u.photoURL||""},{merge:true});
-  }catch(e){
-    if(e.code==="permission-denied"){ mostrarLogin(`La cuenta ${u.email} no tiene permiso para cuidar a Ciruquis.`); return; }
-  }
+    const ref=db.collection("personas").doc(u.uid), s=await ref.get();
+    if(!s.exists) await ref.set({nombre:u.displayName||"",apodo:/^ebendezus@/.test(miEmail)?"Teté":"",fotoGoogle:u.photoURL||"",desde:new Date().toISOString()});
+    else await ref.set({fotoGoogle:u.photoURL||""},{merge:true});
+  }catch(e){ if(e.code==="permission-denied"){ mostrarLogin(`La cuenta ${u.email} no tiene permiso para entrar al jardín.`); return; } }
   $("login").hidden=true;
   if(arrancado) return; arrancado=true;
   try{ await sembrar(); }catch(e){ console.warn("semilla",e); }
-  registrarToken(false); renderSetup();
-  let listos=0;
-  const marcar=(()=>{ const vistos=new Set(); return k=>{ if(!vistos.has(k)){ vistos.add(k); listos++; } if(listos>=3){ render(); cargado=true; } }; })();
-  db.collection("personas").onSnapshot(s=>{ s.docs.forEach(d=>{ perfiles[d.id]={name:d.data().nombre||""}; }); if(cargado) render(); });
-  db.collection("registro").orderBy("fecha","desc").limit(500).onSnapshot(snap=>{
-    entradas=snap.docs.map(d=>({id:d.id,...d.data()})); marcar("r");
-  },()=>toast("Se perdió la conexión. Revisa tu internet."));
-  db.collection("compras").onSnapshot(snap=>{ compras=snap.docs.map(d=>({id:d.id,...d.data()})); marcar("c"); },()=>marcar("c"));
-  db.collection("ajustes").onSnapshot(snap=>{ const d=snap.docs.find(x=>x.id==="ciruquis"); equipado = d ? (d.data().equipado||[]) : null; marcar("a"); },()=>marcar("a"));
+  registrarToken(false);
+  const listos=new Set(), marcar=k=>{ listos.add(k); if(listos.size>=5){ render(); cargado=true; } };
+  db.collection("personas").onSnapshot(s=>{ personas={}; s.docs.forEach(d=>personas[d.id]=d.data()); marcar("p"); if(cargado) render(); });
+  db.collection("plantas").onSnapshot(s=>{ plantas=s.docs.map(d=>({id:d.id,...d.data()})).filter(p=>!p.archivada).sort((a,b)=>(a.orden??0)-(b.orden??0)); marcar("pl"); if(cargado) render(); });
+  db.collection("registro").orderBy("fecha","desc").limit(800).onSnapshot(s=>{ entradas=s.docs.map(d=>({id:d.id,...d.data()})); marcar("r"); if(cargado) render(); },()=>toast("Se perdió la conexión. Revisa tu internet."));
+  db.collection("compras").onSnapshot(s=>{ compras=s.docs.map(d=>({id:d.id,...d.data()})); marcar("c"); if(cargado) render(); },()=>marcar("c"));
+  db.collection("ajustes").onSnapshot(s=>{ const d=s.docs.find(x=>x.id==="ciruquis"); equipado=d?(d.data().equipado||[]):null; marcar("a"); if(cargado) render(); },()=>marcar("a"));
 });
