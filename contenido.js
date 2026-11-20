@@ -98,5 +98,6 @@ Object.assign(ICON, {
   corazon:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-8-5.2-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 5.8-8 11-8 11z"/></svg>',
   calendario:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
   medalla:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 2h4l1 4 1-4h4l-3 7a6 6 0 1 1-4 0z"/></svg>',
+  tema:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20zm0 2.2v15.6a7.8 7.8 0 0 0 0-15.6z" opacity=".35"/><path d="M12 2a10 10 0 0 0 0 20V2z"/></svg>',
   maceta:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 11c0-4 2-7 7-7 0 4-2 7-7 7zm0 0C9 11 5 9 5 4c4 0 7 3 7 7zM5 12h14l-2 9H7z"/></svg>'
 });

@@ -548,6 +548,11 @@ function renderPerfil(saldo){
   const se=$("settings"); se.innerHTML="";
   const fila2=(ico,t,sub,fn,tag)=>{ const r=el(fn&&typeof fn==="string"?"a":"button","row"); if(typeof fn==="string"){ r.href=fn; r.target="_blank"; r.rel="noopener"; } else { r.type="button"; if(fn) r.onclick=()=>{ vibrar(); fn(); }; else r.disabled=true; }
     r.innerHTML=`<span class="ri sm">${ico}</span><span class="rt"><b>${esc(t)}</b>${sub?`<span>${esc(sub)}</span>`:""}</span>${tag||'<i class="chev"></i>'}`; se.append(r); };
+  const tr=el("div","row seg-row"); tr.innerHTML=`<span class="ri sm">${ICON.tema}</span><span class="rt"><b>Apariencia</b><span>Elige cómo se ve la app en este celular</span></span>`;
+  const seg=el("div","seg"); seg.setAttribute("role","radiogroup"); seg.setAttribute("aria-label","Apariencia");
+  [["auto","Automático"],["light","Claro"],["dark","Oscuro"]].forEach(([k,n])=>{ const b=el("button",LS.get("tema","auto")===k?"on":""); b.type="button"; b.setAttribute("role","radio"); b.setAttribute("aria-checked",LS.get("tema","auto")===k); b.textContent=n;
+    b.onclick=()=>{ vibrar(); LS.set("tema",k); aplicarTema(k); renderPerfil(monedas()); toast(k==="auto"?"La app sigue el modo de tu celular":k==="light"?"Modo claro activado":"Modo oscuro activado"); }; seg.append(b); });
+  tr.append(seg); se.append(tr);
   const perm="Notification" in window?Notification.permission:"unsupported";
   if(perm==="granted") fila2(ICON.campana,"Avisos de Ciruquis","Activados: te avisa cuando una planta tiene sed o tu racha peligra",null,'<span class="tag ok">Activos</span>');
   else if(perm==="denied") fila2(ICON.campana,"Avisos de Ciruquis","Bloqueados. Actívalos en los ajustes del celular para esta app.",null,'<span class="tag due">Apagados</span>');
@@ -557,6 +562,16 @@ function renderPerfil(saldo){
   fila2(ICON.libro,"Guía de cuidados de la bugambilia","Se abre en Claude","https://claude.ai/artifact/Hnr58J6AW1dNxvcGsDxsVa");
   fila2(ICON.salir,"Cerrar sesión","",()=>salir());
 }
+
+/* ---------- apariencia ---------- */
+function aplicarTema(k){
+  const r=document.documentElement;
+  if(k==="light"||k==="dark") r.dataset.theme=k; else delete r.dataset.theme;
+  const oscuro = k==="dark" || (k!=="light" && matchMedia("(prefers-color-scheme: dark)").matches);
+  document.querySelector('meta[name="theme-color"]').setAttribute("content", oscuro?"#101814":"#F3F6F2");
+}
+aplicarTema(LS.get("tema","auto"));
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change",()=>aplicarTema(LS.get("tema","auto")));
 
 /* ---------- render general ---------- */
 function render(){

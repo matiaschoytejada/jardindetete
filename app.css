@@ -316,6 +316,11 @@ a.row{color:inherit;text-decoration:none;font-weight:inherit}
 .row .rt b{display:block;font-weight:900;line-height:1.2}
 .row .rt span{display:block;color:var(--muted);font-size:.85rem;font-weight:600}
 .row .chev{flex:0 0 12px;width:12px;height:12px;border-right:3px solid var(--line-2);border-top:3px solid var(--line-2);transform:rotate(45deg)}
+.seg-row{flex-wrap:wrap}
+.seg{flex:1 1 100%;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;background:var(--bg);border:2px solid var(--line);border-radius:14px;padding:4px;margin-top:2px}
+.seg button{border:0;background:none;border-radius:10px;padding:9px 4px;font-weight:900;font-size:.88rem;color:var(--muted);transition:background .2s,color .2s}
+.seg button.on{background:#6B1D4F;color:#fff;box-shadow:0 3px 0 #3E0E2D}
+.seg button:active{transform:translateY(2px)}
 .foot{color:var(--muted);font-size:.86rem;text-align:center;font-weight:600}
 
 /* ---------- navegación inferior ---------- */
