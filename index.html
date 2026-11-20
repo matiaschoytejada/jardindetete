@@ -15,14 +15,14 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="app.css?v=7">
+<link rel="stylesheet" href="app.css?v=8">
 </head>
 <body>
 
 <div class="login" id="login" hidden>
   <img src="icons/icon-512.png" alt="" class="login-icon">
   <h1>Jardín de Teté</h1>
-  <p>Hola, Teté. Entra con tu cuenta de Google para cuidar a Ciruquis.</p>
+  <p>Entra con tu cuenta de Google para cuidar a Ciruquis y el jardín.</p>
   <button class="gbtn" id="gbtn" type="button"><svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>Entrar con Google</button>
   <div class="err" id="loginErr" hidden></div>
   <button class="linkbtn" id="salirLogin" type="button" hidden>Probar con otra cuenta</button>
@@ -35,6 +35,7 @@
     <svg class="caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
   </button>
   <div class="stats">
+    <button class="stat msgchip" id="chipMsg" type="button" aria-label="Mensajitos"><span class="ico" id="msgIco"></span><i class="badge" id="msgBadge" hidden>0</i></button>
     <button class="stat fire" id="chipStreak" type="button" aria-label="Racha"><span class="ico"></span><b id="streakChip">0</b></button>
     <button class="stat coin" id="chipCoins" type="button" aria-label="Monedas"><span class="ico"></span><b id="coins">0</b></button>
   </div>
@@ -44,10 +45,12 @@
   <!-- INICIO -->
   <section class="view" data-view="inicio" aria-label="Inicio">
     <div class="greet">
-      <h1 id="hello">¡Hola, Teté!</h1>
+      <h1 id="hello">¡Hola!</h1>
       <div class="rot" id="rot" aria-live="polite"><span id="rotText"></span></div>
       <div class="dots" id="rotDots"></div>
     </div>
+
+    <div id="cartaBox"></div>
 
     <div class="banner" id="setup" hidden>
       <div class="banner-art" id="setupArt"></div>
@@ -84,6 +87,8 @@
     <div id="learnTop"></div>
     <div class="sec-h"><h2>Para hoy</h2><span class="sec-note coin-note" id="learnCoins"></span></div>
     <div class="missions" id="learnToday"></div>
+    <div class="sec-h"><h2>Más para hoy</h2></div>
+    <div class="tiles" id="learnMore"></div>
     <div class="sec-h"><h2>Tu camino</h2></div>
     <div id="course"></div>
     <div class="sec-h"><h2>Álbum de datos curiosos</h2><span class="sec-note" id="albumCount"></span></div>
@@ -109,7 +114,7 @@
   <section class="view" data-view="perfil" aria-label="Perfil" hidden>
     <div class="profile-head">
       <button class="avatar-xl" id="avatarBtn" type="button" aria-label="Cambiar foto"><span id="avatarXL"></span><i class="cam" aria-hidden="true"></i></button>
-      <h1 id="profName">Teté</h1>
+      <h1 id="profName"></h1>
       <span class="titulo-pill" id="profTitulo" hidden></span>
       <p id="profSub"></p>
       <button class="btn alt small" id="editProfile" type="button">Editar perfil</button>
@@ -216,9 +221,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
-<script src="config.js?v=7"></script>
-<script src="especies.js?v=7"></script>
-<script src="contenido.js?v=7"></script>
-<script src="app.js?v=7"></script>
+<script src="config.js?v=8"></script>
+<script src="especies.js?v=8"></script>
+<script src="contenido.js?v=8"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>

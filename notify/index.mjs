@@ -7,6 +7,30 @@ const APP = process.env.APP_URL || "/";
 admin.initializeApp({ credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)) });
 const db = admin.firestore();
 
+// Mensajitos: cada 15 minutos se avisan los que aún no se avisaron
+if (MODO === "mensajes") {
+  const pend = await db.collection("mensajes").where("notificado", "==", false).get();
+  if (pend.empty) { console.log("Sin mensajitos nuevos."); process.exit(0); }
+  const gente = Object.fromEntries((await db.collection("personas").get()).docs.map(d => [d.id, d.data()]));
+  const nom = uid => { const p = gente[uid] || {}; return (p.apodo || "").trim() || (p.nombre || "").split(" ")[0] || "tu familia"; };
+  const toks = (await db.collection("tokens").get()).docs;
+  for (const m of pend.docs) {
+    const d = m.data();
+    const dest = toks.filter(t => d.para === "*" ? t.data().uid !== d.de : t.data().uid === d.para);
+    if (dest.length) {
+      const res = await admin.messaging().sendEach(dest.map(t => ({
+        token: t.id,
+        data: { title: `💌 Mensajito de ${nom(d.de)}`, body: String(d.texto || "").slice(0, 140), tag: "msg-" + m.id, link: APP + "#mensajes" },
+        webpush: { headers: { Urgency: "high", TTL: "86400" }, fcmOptions: { link: APP + "#mensajes" } }
+      })));
+      await Promise.all(res.responses.map((x, i) => (!x.success && /not-registered|invalid-argument/.test(x.error?.code || "")) ? dest[i].ref.delete() : null));
+      console.log(`Mensaje ${m.id}: ${res.successCount}/${dest.length}`);
+    }
+    await m.ref.update({ notificado: true });
+  }
+  process.exit(0);
+}
+
 globalThis.self = globalThis;
 await import("../especies.js");
 const dia = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
@@ -82,7 +106,7 @@ function aviso(c, uid) {
     return { title: `${c}, hay un dato curioso nuevo 💡`, body: "Ábrelo en Aprender y súmalo a tu álbum.", tag: "aprende" };
   return null;
 }
-const apodoDe = uid => { const p = personas[uid] || {}; return (p.apodo || "").trim() || (p.nombre || "").split(" ")[0] || "Teté"; };
+const apodoDe = uid => { const p = personas[uid] || {}; return (p.apodo || "").trim() || (p.nombre || "").split(" ")[0] || ""; };
 
 console.log({ MODO, temporada: temp.k, plantas: estados.map(e => `${e.p.nombre}:${e.animo}(${e.sinAgua}d)`), activoHoy, rachaJardin: r });
 

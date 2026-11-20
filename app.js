@@ -13,7 +13,7 @@ const daysBetween = (a,b) => Math.round((day(b)-day(a))/86400000);
 const MESES=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 
 /* ---------- estado ---------- */
-let db=null, miId=null, miEmail="", personas={}, plantas=[], entradas=[], compras=[], equipado=null;
+let db=null, miId=null, miEmail="", personas={}, plantas=[], entradas=[], compras=[], equipado=null, mensajes=[];
 let sel = LS.get("planta","ciruquis"), tab="inicio", cargado=false, puedeEscribir=true, mostrar=12, filtro="todas";
 let R={cur:0,best:0,todayActive:false,freezesLeft:0,days:{}};
 let prev={level:-1,tiers:-1,streak:-1,coins:null};
@@ -22,7 +22,8 @@ const COLORES_MACETA=["#7A2457","#2F7A4F","#3C7DD6","#E0A21B","#D9534F","#8E6CCB
 const LEVELS_G=[[0,"Semilla"],[30,"Brote"],[80,"Plantita"],[160,"Arbusto"],[300,"Frondosa"],[500,"Experta"],[800,"Leyenda del jardín"]];
 const plantaDe = e => e.plantaId || "ciruquis";
 const yo = () => personas[miId] || {};
-const apodo = () => { const p=yo(); return (p.apodo||"").trim() || (p.nombre||"").split(" ")[0] || "Teté"; };
+let nombreAuth="";
+const apodo = () => { const p=yo(); return (p.apodo||"").trim() || (p.nombre||"").split(" ")[0] || nombreAuth; };
 const planta = () => plantas.find(p=>p.id===sel) || plantas[0] || {id:"ciruquis",nombre:"Ciruquis",especie:"bugambilia",color:"#7A2457"};
 const esp = p => ESPECIES[p.especie] || ESPECIES.otra;
 const esCiruquis = p => p && p.id==="ciruquis";
@@ -203,6 +204,7 @@ const CARINO=["¡Me haces cosquillas!","Gracias por cuidarme.","Te quiero mucho.
 /* ---------- navegación ---------- */
 const TABS=["inicio","aprender","premios","diario","perfil"];
 function irA(t,{scroll=true}={}){
+  if(t==="mensajes"){ if(cargado) hojaMensajes(); t="inicio"; }
   if(!TABS.includes(t)) t="inicio";
   const cambia = t!==tab; tab=t;
   document.querySelectorAll(".view").forEach(v=>{ const on=v.dataset.view===t; v.hidden=!on; if(on&&cambia){ v.classList.remove("enter"); void v.offsetWidth; v.classList.add("enter"); } });
@@ -216,6 +218,7 @@ window.addEventListener("hashchange",()=>irA(location.hash.slice(1)));
 $("chipStreak").onclick=()=>{ vibrar(); premiosVista=vistaPersonal()?"personal":"familia"; irA("premios"); };
 $("chipCoins").onclick=()=>{ vibrar(); premiosVista=vistaPersonal()?"personal":"familia"; irA("premios"); setTimeout(()=>{ const t=document.querySelector(premiosVista==="personal"?"#tiendaP":"#tiendaH"); t&&t.scrollIntoView({behavior:"smooth",block:"start"}); },80); };
 $("plantChip").onclick=()=>{ vibrar(); hojaPlantas(); };
+$("chipMsg").onclick=()=>{ vibrar(); hojaMensajes(); };
 
 /* ---------- hojas (sheets) ---------- */
 function abrirHoja(titulo,construir){
@@ -327,6 +330,116 @@ $("photoInput").onchange=async e=>{
   }catch(_){ toast("No se pudo abrir esa foto. Prueba con otra."); }
 };
 
+/* ---------- mensajitos ---------- */
+const otraPersona = () => Object.keys(personas).find(k=>k!==miId) || null;
+const paraMi = m => m.de!==miId && (m.para===miId || m.para==="*");
+const sinLeer = () => mensajes.filter(m=>paraMi(m)&&!m.leido);
+const horaMsg = f => { const d=new Date(f), h=daysBetween(d,new Date()); return (h===0?"hoy":h===1?"ayer":d.toLocaleDateString("es-PE",{day:"numeric",month:"short"}))+" · "+d.toLocaleTimeString("es-PE",{hour:"2-digit",minute:"2-digit"}); };
+const RAPIDOS = ["Te quiero mucho 💜","¿Regaste a Ciruquis? 💧","¡Buen trabajo con las plantas! 🌸","Te extraño 🥺","Ya la regué yo, tranquila 🌿","Mira la lección de hoy, está buena 📚"];
+async function marcarLeidos(){ const b=db.batch(); let n=0; sinLeer().forEach(m=>{ b.update(db.collection("mensajes").doc(m.id),{leido:true,leidoEn:new Date().toISOString()}); n++; }); if(n) await b.commit().catch(()=>{}); }
+async function reaccionar(m){ try{ await db.collection("mensajes").doc(m.id).update({reaccion:m.reaccion?"":"❤️",leido:true}); vibrar(20); if(!m.reaccion) corazones(); }catch(_){ toast("No se pudo guardar la reacción."); } }
+function hojaMensajes(){
+  const otra=otraPersona(), nom=otra?nombreDe(otra):"tu familia";
+  abrirHoja(`Mensajitos con ${nom}`, body=>{
+    const chat=el("div","chat"); chat.id="chat"; body.append(chat); pintarChat();
+    const rap=el("div","rapidos"); RAPIDOS.forEach(t=>{ const b=el("button","fchip"); b.type="button"; b.textContent=t; b.onclick=()=>{ vibrar(); body.querySelector("#msgTxt").value=t; body.querySelector("#msgTxt").focus(); }; rap.append(b); });
+    const comp=el("div","composer",`<textarea class="input" id="msgTxt" rows="2" maxlength="400" placeholder="Escríbele algo bonito…"></textarea>`);
+    const env=el("button","btn plum enviar",ICON.enviar); env.type="button"; env.setAttribute("aria-label","Enviar");
+    env.onclick=async()=>{ const ta=body.querySelector("#msgTxt"), t=ta.value.trim(); if(!t){ ta.focus(); return; } env.disabled=true; vibrar([12,30,12]);
+      try{ await db.collection("mensajes").add({de:miId,para:otra||"*",texto:t,fecha:new Date().toISOString(),leido:false,notificado:false,reaccion:""}); ta.value=""; toast(`Mensajito enviado a ${nom} 💌`,"ok"); lanzar("petal",14,{x:innerWidth-60,y:innerHeight-120}); }
+      catch(_){ toast("No se pudo enviar. Revisa tu conexión."); } env.disabled=false; };
+    comp.append(env); body.append(rap,comp);
+    if(!otra){ const n=el("p","sec-desc"); n.style.margin="0"; n.textContent="Cuando la otra persona entre a la app, verá tus mensajes."; body.append(n); }
+    marcarLeidos();
+  });
+}
+function pintarChat(){
+  const chat=$("chat"); if(!chat) return; chat.innerHTML="";
+  const lista=mensajes.filter(m=>m.de===miId||paraMi(m)).slice().reverse();
+  if(!lista.length){ chat.innerHTML='<p class="empty">Todavía no hay mensajitos. Manda el primero.</p>'; return; }
+  lista.forEach(m=>{ const mio=m.de===miId, b=el("div","msg"+(mio?" mio":""));
+    b.innerHTML=`${mio?"":avatarHTML(personas[m.de],30,false)}<div class="bub"><p></p><small>${horaMsg(m.fecha)}${mio?(m.leido?" · Visto":" · Enviado"):""}</small>${m.reaccion?`<span class="reac">${m.reaccion}</span>`:""}</div>`;
+    b.querySelector("p").textContent=m.texto;
+    if(!mio){ const bb=b.querySelector(".bub"); bb.title="Toca dos veces para darle corazón"; bb.ondblclick=()=>reaccionar(m); }
+    chat.append(b); });
+  requestAnimationFrame(()=>{ chat.scrollTop=chat.scrollHeight; });
+}
+function renderCarta(){
+  const box=$("cartaBox"), nuevos=sinLeer();
+  const badge=$("msgBadge"); badge.hidden=!nuevos.length; badge.textContent=nuevos.length;
+  $("chipMsg").classList.toggle("tiene",!!nuevos.length);
+  box.innerHTML=""; if(!nuevos.length) return;
+  const m=nuevos[0], c=el("article","carta");
+  c.innerHTML=`<div class="carta-top">${avatarHTML(personas[m.de],40,false)}<div><b>Mensajito de ${esc(nombreDe(m.de))}</b><small>${horaMsg(m.fecha)}${nuevos.length>1?` · y ${nuevos.length-1} más`:""}</small></div><span class="sobre">${ICON.sobre}</span></div><p class="carta-txt"></p>`;
+  c.querySelector(".carta-txt").textContent=m.texto;
+  const r=boton("Responder","plum",()=>hojaMensajes()), h=boton("❤️ Me encanta","alt",async()=>{ await reaccionar(m); });
+  r.disabled=false; h.disabled=false; c.append(fila(h,r)); box.append(c);
+}
+
+/* ---------- práctica y juego ---------- */
+const deHoy = (tipo) => misAprend().filter(e=>e.tipo===tipo&&daysBetween(e.fecha,new Date())===0);
+const MAX_PRACTICA=3, MAX_JUEGO=2;
+function abrirPractica(){
+  const banco=PRACTICA().slice().sort(()=>Math.random()-.5).slice(0,5);
+  let i=0, ok=0; const conPremio=deHoy("practica").length<MAX_PRACTICA;
+  abrirHoja("Práctica rápida", body=>{
+    const prog=el("div","bar qbar","<i></i>"); const area=el("div","qarea"); body.append(prog,area);
+    const paso=()=>{
+      prog.querySelector("i").style.width=(i/banco.length*100)+"%"; area.innerHTML="";
+      if(i>=banco.length){ return fin(); }
+      const L=banco[i]; const q=el("div","q"); q.textContent=L.q; const opts=el("div","opts");
+      const cnt=el("div","qcount"); cnt.textContent=`Pregunta ${i+1} de ${banco.length}`;
+      L.o.forEach((t,k)=>{ const b=el("button","opt"); b.type="button"; b.textContent=t;
+        b.onclick=()=>{ vibrar(); const bien=k===L.a; if(bien) ok++; opts.querySelectorAll(".opt").forEach((x,j)=>{ x.disabled=true; if(j===L.a) x.classList.add("right"); }); if(!bien){ b.classList.add("wrong"); vibrar([30,40,30]); }
+          const ex=el("div","explain"+(bien?"":" no")); ex.textContent=(bien?"¡Correcto! ":"Casi. ")+L.e; const sig=boton(i<banco.length-1?"Siguiente":"Ver resultado","plum wide",()=>{ i++; paso(); }); sig.disabled=false; area.append(ex,sig); };
+        opts.append(b); });
+      area.append(cnt,q,opts);
+    };
+    const fin=async()=>{
+      const mon=conPremio?ok*2:0;
+      area.innerHTML=`<div class="resultado"><div class="big">${ok}/${banco.length}</div><b>${ok===banco.length?"¡Perfecto!":ok>=3?"¡Muy bien!":"¡Sigue practicando!"}</b><p>${conPremio?`Ganaste ${mon} moneda${mon===1?"":"s"} tuya${mon===1?"":"s"}.`:"Ya hiciste tus 3 prácticas con premio de hoy. Esta fue solo por gusto."}</p></div>`;
+      const otra=boton("Otra práctica","plum wide",()=>abrirPractica()); otra.disabled=false; const cerrar=boton("Listo","alt wide",()=>cerrarHoja()); cerrar.disabled=false; area.append(fila(cerrar,otra));
+      if(ok===banco.length) confeti(30);
+      try{ await db.collection("registro").add({tipo:"practica",nota:`${ok}/${banco.length}`,aciertos:ok,monedas:mon,fecha:new Date().toISOString(),quien:miId,plantaId:"ciruquis"}); if(mon) monedasFx(true); }catch(_){ toast("No se pudo guardar el resultado."); }
+    };
+    paso();
+  });
+}
+function abrirMemoria(){
+  const cartas=JUEGO_ESPECIES.flatMap(k=>[k,k]).sort(()=>Math.random()-.5);
+  let abiertas=[], hechas=0, movs=0, t0=null, bloqueo=false; const conPremio=deHoy("juego").length<MAX_JUEGO;
+  const record=misAprend().filter(e=>e.tipo==="juego").reduce((m,e)=>Math.min(m,e.movimientos||99),99);
+  abrirHoja("Memoria del jardín", body=>{
+    const info=el("div","jinfo",`<span>Movimientos: <b id="jMov">0</b></span><span>${record<99?`Récord: <b>${record}</b>`:"Encuentra las parejas"}</span>`);
+    const grid=el("div","memoria");
+    cartas.forEach((k,idx)=>{ const c=el("button","mcard"); c.type="button"; c.setAttribute("aria-label","Carta "+(idx+1));
+      c.innerHTML=`<span class="mface mback">${ICON.maceta}</span><span class="mface mfront">${plantaSVG({especie:k,color:COLORES_MACETA[JUEGO_ESPECIES.indexOf(k)],id:"x"},"feliz",3,{mini:true})}</span>`;
+      c.onclick=()=>{ if(bloqueo||c.classList.contains("on")||c.classList.contains("ok")) return; if(!t0) t0=Date.now(); vibrar(8); c.classList.add("on"); abiertas.push({c,k});
+        if(abiertas.length===2){ movs++; body.querySelector("#jMov").textContent=movs; const [a,b]=abiertas;
+          if(a.k===b.k){ setTimeout(()=>{ a.c.classList.add("ok"); b.c.classList.add("ok"); vibrar(20); },250); abiertas=[]; hechas++; if(hechas===JUEGO_ESPECIES.length) setTimeout(fin,600); }
+          else { bloqueo=true; setTimeout(()=>{ a.c.classList.remove("on"); b.c.classList.remove("on"); abiertas=[]; bloqueo=false; },800); } } };
+      grid.append(c); });
+    body.append(info,grid);
+    const fin=async()=>{
+      const seg=Math.round((Date.now()-t0)/1000), mon=conPremio?(movs<=8?8:movs<=12?5:3):0;
+      const r=el("div","resultado",`<div class="big">${movs}</div><b>movimientos en ${seg} s${movs<record&&record<99?" · ¡nuevo récord!":""}</b><p>${conPremio?`Ganaste ${mon} monedas tuyas.`:"Ya jugaste tus 2 partidas con premio de hoy. Esta fue solo por gusto."}</p>`);
+      const otra=boton("Jugar otra vez","plum wide",()=>abrirMemoria()); otra.disabled=false; const cerrar=boton("Listo","alt wide",()=>cerrarHoja()); cerrar.disabled=false;
+      body.append(r,fila(cerrar,otra)); r.scrollIntoView({behavior:"smooth"}); confeti(30);
+      try{ await db.collection("registro").add({tipo:"juego",nota:"memoria",movimientos:movs,segundos:seg,monedas:mon,fecha:new Date().toISOString(),quien:miId,plantaId:"ciruquis"}); if(mon) monedasFx(true); }catch(_){ toast("No se pudo guardar el resultado."); }
+    };
+  });
+}
+function renderMas(){
+  const box=$("learnMore"); box.innerHTML="";
+  const np=deHoy("practica").length, nj=deHoy("juego").length;
+  const record=misAprend().filter(e=>e.tipo==="juego").reduce((m,e)=>Math.min(m,e.movimientos||99),99);
+  const t1=el("article","tile"); t1.innerHTML=`<div class="tile-ico sun">${ICON.practica}</div><b>Práctica rápida</b><p>5 preguntas de plantas. +2 por acierto.</p><small>${np<MAX_PRACTICA?`${MAX_PRACTICA-np} con premio hoy`:"Premios de hoy completos"}</small>`;
+  const b1=boton("Practicar","gold wide",()=>abrirPractica()); b1.disabled=false; t1.append(b1);
+  const t2=el("article","tile"); t2.innerHTML=`<div class="tile-ico pink">${ICON.juego}</div><b>Memoria del jardín</b><p>Encuentra las parejas de plantas.</p><small>${record<99?`Récord: ${record} movimientos`:nj<MAX_JUEGO?`${MAX_JUEGO-nj} con premio hoy`:"Premios de hoy completos"}</small>`;
+  const b2=boton("Jugar","pink wide",()=>abrirMemoria()); b2.disabled=false; t2.append(b2);
+  box.append(t1,t2);
+}
+
 /* ---------- vistas ---------- */
 let rotIdx=0, rotTimer=null, rotLista=[], rotPlanta=null;
 function pintarRot(i,anim=true){
@@ -364,6 +477,7 @@ function renderHeader(){
   $("chipMini").innerHTML=miniDe(p); $("chipName").textContent=p.nombre;
   const cs=$("chipStreak"), cc=$("chipCoins");
   $("streakChip").textContent=r.cur; cs.classList.toggle("off",!r.cur||!r.todayActive); cs.classList.toggle("personal",per);
+  $("msgIco").innerHTML=ICON.sobre;
   cs.querySelector(".ico").innerHTML=ICON.racha; cc.querySelector(".ico").innerHTML=per?coinYo():coinFam(); cc.classList.toggle("personal",per);
   [cs,cc].forEach(c=>{ const w=el("i","who"); w.innerHTML=per?ICON.perfil:ICON.inicio; c.querySelector(".ico").append(w); });
   cs.setAttribute("aria-label",per?"Tu racha de aprendizaje":"Racha familiar del jardín");
@@ -389,7 +503,7 @@ function card({icon,cls,title,sub,tag,tagCls,done,who,coin}){
 }
 function renderInicio(){
   const p=planta(), st=estadoPlanta(p), lv=nivelDe(p), hoy=new Date(), s=esp(p);
-  $("hello").textContent=`¡Hola, ${apodo()}!`;
+  $("hello").textContent=apodo()?`¡Hola, ${apodo()}!`:"¡Hola!";
   if(esCiruquis(p)) dibujarCiruquis(st.mood,lv.i);
   else { ciruquisMontada=false; const b=$("buga"); b.className="buga mood-"+st.mood; b.innerHTML=plantaSVG(p,st.mood,lv.i); }
   if(burbujaIdx<0 || burbujaIdx===CARINO.length) pintarBurbuja(estadoTxt(p,st),false);
@@ -679,7 +793,7 @@ function render(){
   if(!plantas.find(p=>p.id===sel) && plantas[0]){ sel=plantas[0].id; LS.set("planta",sel); ciruquisMontada=false; }
   calcularRachas();
   const p=planta(), lv=nivelDe(p), tiers=BADGES_F.reduce((s,b)=>s+tierDe(b).t,0)+BADGES_P.reduce((s,b)=>s+tierDe(b).t,0);
-  renderHeader(); renderInicio(); renderAprender(); renderPremios(); renderDiario(); renderPerfil();
+  renderHeader(); renderInicio(); renderAprender(); renderMas(); renderPremios(); renderDiario(); renderPerfil(); renderCarta(); pintarChat();
   if(cargado){
     if(prev.level>=0 && lv.i>prev.level){ toast(`¡Subió de nivel! ${p.nombre} ahora es ${lv.name}`,"ok"); confeti(40); $("buga").classList.add("pop-b"); }
     else if(prev.tiers>=0 && tiers>prev.tiers) setTimeout(()=>{ toast("¡Nueva medalla! Mírala en Premios","ok"); monedasFx(); },900);
@@ -768,7 +882,7 @@ const auth=firebase.auth();
 db=firebase.firestore();
 db.enablePersistence({synchronizeTabs:true}).catch(()=>{});
 try{ if(firebase.messaging.isSupported()) messaging=firebase.messaging(); }catch(_){ messaging=null; }
-const VERSION="2026.11.20 · v7";
+const VERSION="2026.11.20 · v8";
 if("serviceWorker" in navigator){
   const habia=!!navigator.serviceWorker.controller; let recargado=false;
   navigator.serviceWorker.addEventListener("controllerchange",()=>{ if(habia&&!recargado){ recargado=true; location.reload(); } });
@@ -795,7 +909,8 @@ $("addPlantBtn2").onclick=()=>{ vibrar(); formPlanta(); };
 let arrancado=false;
 auth.onAuthStateChanged(async u=>{
   if(!u){ mostrarLogin(); return; }
-  miId=u.uid; miEmail=(u.email||"").toLowerCase();
+  miId=u.uid; miEmail=(u.email||"").toLowerCase(); nombreAuth=/^ebendezus@/.test(miEmail)?"Teté":(u.displayName||"").split(" ")[0];
+  $("hello").textContent=nombreAuth?`¡Hola, ${nombreAuth}!`:"¡Hola!";
   try{
     const ref=db.collection("personas").doc(u.uid), s=await ref.get();
     if(!s.exists) await ref.set({nombre:u.displayName||"",apodo:/^ebendezus@/.test(miEmail)?"Teté":"",fotoGoogle:u.photoURL||"",desde:new Date().toISOString(),mascota:/^matiaschoytejada@/.test(miEmail)?"zoe":"popeye"});
@@ -810,5 +925,9 @@ auth.onAuthStateChanged(async u=>{
   db.collection("plantas").onSnapshot(s=>{ plantas=s.docs.map(d=>({id:d.id,...d.data()})).filter(p=>!p.archivada).sort((a,b)=>(a.orden??0)-(b.orden??0)); marcar("pl"); if(cargado) render(); });
   db.collection("registro").orderBy("fecha","desc").limit(800).onSnapshot(s=>{ entradas=s.docs.map(d=>({id:d.id,...d.data()})); marcar("r"); if(cargado) render(); },()=>toast("Se perdió la conexión. Revisa tu internet."));
   db.collection("compras").onSnapshot(s=>{ compras=s.docs.map(d=>({id:d.id,...d.data()})); marcar("c"); if(cargado) render(); },()=>marcar("c"));
+  let msgVistos=null;
+  db.collection("mensajes").orderBy("fecha","desc").limit(200).onSnapshot(s=>{ mensajes=s.docs.map(d=>({id:d.id,...d.data()}));
+    const nuevos=new Set(sinLeer().map(m=>m.id)); if(msgVistos&&[...nuevos].some(id=>!msgVistos.has(id))){ toast(`💌 Nuevo mensajito de ${nombreDe(sinLeer()[0].de)}`,"info"); vibrar([20,40,20]); }
+    msgVistos=nuevos; if(cargado){ renderCarta(); pintarChat(); if(!$("sheetWrap").hidden&&$("chat")) marcarLeidos(); } else if(location.hash==="#mensajes") setTimeout(hojaMensajes,800); },()=>{});
   db.collection("ajustes").onSnapshot(s=>{ const d=s.docs.find(x=>x.id==="ciruquis"); equipado=d?(d.data().equipado||[]):null; marcar("a"); if(cargado) render(); },()=>marcar("a"));
 });

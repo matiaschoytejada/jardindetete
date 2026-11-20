@@ -4,7 +4,7 @@ importScripts(
   "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js",
   "config.js"
 );
-const CACHE = "ciruquis-v7";
+const CACHE = "ciruquis-v8";
 const BASE = self.registration.scope;
 const SHELL = ["", "index.html", "app.css", "app.js", "contenido.js", "especies.js", "config.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/badge-96.png"];
 

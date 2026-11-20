@@ -14,17 +14,17 @@ const ICON = {
   candado:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 10V7a5 5 0 0 1 10 0v3h1v11H6V10zm2 0h6V7a3 3 0 0 0-6 0z"/></svg>',
   nota:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 4h14v16H5zM8 9h8M8 13h8M8 17h5"/></svg>'
 };
-const TXT = {riego:"Riego",revision:"Prueba del dedo",abono:"Abono",plagas:"Patrulla de plagas",poda:"Poda",leccion:"Lección",brotes:"Brotes nuevos",dato:"Dato curioso",nota:"Nota"};
+const TXT = {riego:"Riego",revision:"Prueba del dedo",abono:"Abono",plagas:"Patrulla de plagas",poda:"Poda",leccion:"Lección",brotes:"Brotes nuevos",dato:"Dato curioso",practica:"Práctica",juego:"Memoria del jardín",nota:"Nota"};
 const LEVELS = [[0,"Semilla"],[30,"Brote"],[80,"Plantita"],[160,"Arbusto"],[300,"Floración"],[500,"Abuelita sabia"],[800,"Reina del balcón"]];
 /* puntos (nivel) y monedas (tienda) por tipo de cuidado */
 const PTS = e => ({riego:10,revision:5,abono:15,poda:15,plagas:10,brotes:10,nota:2,dato:3,leccion:e.ok===false?1:5})[e.tipo] ?? 0;
-const MON = e => ({riego:10,revision:5,abono:15,poda:12,plagas:8,brotes:10,dato:3,leccion:e.ok===false?1:5})[e.tipo] ?? 0;
+const MON = e => (e.tipo==="practica"||e.tipo==="juego") ? (e.monedas||0) : (({riego:10,revision:5,abono:15,poda:12,plagas:8,brotes:10,dato:3,leccion:e.ok===false?1:5})[e.tipo] ?? 0);
 const HITOS = [[3,10],[7,25],[14,40],[30,100],[60,150],[100,300]];
 const TIER_MON = [15,30,60];
 
 /* Cuidado = familia; aprendizaje = cada persona */
 const CUIDADO = ["riego","revision","plagas","abono","poda","brotes"];
-const APRENDE = ["leccion","dato"];
+const APRENDE = ["leccion","dato","practica","juego"];
 const HITOS_A = [[3,10],[7,20],[14,35],[30,80],[60,120]];
 /* c = {F: cuidados de todos, M: mis entradas, MC: mis cuidados, RF: racha familiar, RA: mi racha de aprendizaje} */
 const BADGES_F = [
@@ -135,3 +135,39 @@ const MONEDA = {
   popeye:'<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#B57D00"/><circle cx="12" cy="12" r="9.2" fill="#F2B21B"/><path d="M6.6 9.6 L7.4 4.8 L10.3 7.6 Q12 7.1 13.7 7.6 L16.6 4.8 L17.4 9.6 Q18.3 11.4 17.6 13.6 Q16.2 17.4 12 17.4 Q7.8 17.4 6.4 13.6 Q5.7 11.4 6.6 9.6Z" fill="#FFF3C4"/><circle cx="9.6" cy="11.6" r="1.1" fill="#6B4500"/><circle cx="14.4" cy="11.6" r="1.1" fill="#6B4500"/><path d="M11.2 13.4 L12.8 13.4 L12 14.3Z" fill="#E5338F"/><path d="M12 14.3 Q11 15.6 10 15 M12 14.3 Q13 15.6 14 15 M4.8 12.8 L8 13.4 M4.9 14.6 L8 14.2 M19.2 12.8 L16 13.4 M19.1 14.6 L16 14.2" stroke="#6B4500" stroke-width=".8" fill="none" stroke-linecap="round"/></svg>',
   zoe:'<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#B57D00"/><circle cx="12" cy="12" r="9.2" fill="#F2B21B"/><path d="M8 8.6 Q12 6.4 16 8.6 Q17.6 10.4 17.2 13.4 Q16.4 17.6 12 17.6 Q7.6 17.6 6.8 13.4 Q6.4 10.4 8 8.6Z" fill="#FFF3C4"/><path d="M8.2 8.4 Q5.2 7.6 5 10.8 Q5 13.6 7 14.4 Q7.6 11 8.2 8.4Z" fill="#9C6B12"/><path d="M15.8 8.4 Q18.8 7.6 19 10.8 Q19 13.6 17 14.4 Q16.4 11 15.8 8.4Z" fill="#9C6B12"/><circle cx="9.9" cy="11.6" r="1.1" fill="#6B4500"/><circle cx="14.1" cy="11.6" r="1.1" fill="#6B4500"/><ellipse cx="12" cy="13.9" rx="1.5" ry="1.1" fill="#4A2F00"/><path d="M12 15 L12 15.8 M10.6 16 Q12 16.9 13.4 16" stroke="#6B4500" stroke-width=".8" fill="none" stroke-linecap="round"/><path d="M12 15.9 Q12.4 17.2 12.9 16.2" fill="#E5338F"/></svg>'
 };
+
+Object.assign(ICON, {
+  sobre:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm1 2.3V17h16V7.3l-8 5.4z"/><path d="M4 6l8 5.6L20 6z" opacity=".55"/></svg>',
+  juego:'<svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2" opacity=".55"/><rect x="3" y="13" width="8" height="8" rx="2" opacity=".55"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>',
+  practica:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L4 14h6l-1 8 9-12h-6z"/></svg>',
+  enviar:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 20.5l18-8.5L3 3.5 3 10l12 2-12 2z"/></svg>'
+});
+/* Banco de práctica: las lecciones de la bugambilia más preguntas generales de plantas */
+const PRACTICA_EXTRA = [
+  {id:"p-co2",q:"¿Qué gas toman las plantas del aire para hacer la fotosíntesis?",o:["Dióxido de carbono","Oxígeno","Nitrógeno"],a:0,e:"Toman CO₂ del aire y, con luz y agua, fabrican su alimento."},
+  {id:"p-oxigeno",q:"Durante la fotosíntesis, las plantas liberan…",o:["Oxígeno","Humo","Dióxido de carbono"],a:0,e:"El oxígeno que respiramos sale en gran parte de la fotosíntesis."},
+  {id:"p-clorofila",q:"¿Qué pigmento da el color verde a las hojas?",o:["Caroteno","Clorofila","Antocianina"],a:1,e:"La clorofila atrapa la luz del sol y es verde."},
+  {id:"p-raices",q:"¿Por dónde absorbe agua una planta?",o:["Por las flores","Por las raíces","Por las espinas"],a:1,e:"Las raíces absorben agua y nutrientes de la tierra."},
+  {id:"p-estomas",q:"Los poros diminutos de las hojas por donde entra y sale el aire se llaman…",o:["Estomas","Nudos","Brácteas"],a:0,e:"Por los estomas entra el CO₂ y sale el vapor de agua."},
+  {id:"p-suculenta",q:"¿Por qué las suculentas tienen hojas gorditas?",o:["Para guardar agua","Porque comen mucho","Para dar sombra"],a:0,e:"Almacenan agua en sus hojas para aguantar sequías."},
+  {id:"p-sansevieria",q:"La sansevieria es famosa por…",o:["Necesitar riego diario","Aguantar poca luz y poco riego","Dar frutos dulces"],a:1,e:"Es de las plantas más resistentes para interiores."},
+  {id:"p-drenaje",q:"¿Qué significa que una tierra drene bien?",o:["Que el agua sobrante sale rápido y no se encharca","Que nunca se moja","Que tiene mucho abono"],a:0,e:"Un buen drenaje evita que las raíces se pudran."},
+  {id:"p-agujeros",q:"¿Para qué sirven los agujeros de la maceta?",o:["Para que entren insectos","Para que salga el agua sobrante","Para que respire la maceta"],a:1,e:"Sin agujeros, el agua se acumula y ahoga las raíces."},
+  {id:"p-amarillas",q:"Hojas amarillas con la tierra siempre mojada suelen indicar…",o:["Falta de agua","Exceso de riego","Mucho sol"],a:1,e:"El exceso de agua es el error más común con las plantas."},
+  {id:"p-potus",q:"¿Cómo son las hojas del potus?",o:["Como agujas","En forma de corazón","Redondas y peludas"],a:1,e:"Tiene hojas acorazonadas y crece colgante o trepadora."},
+  {id:"p-orquidea",q:"En la naturaleza, muchas orquídeas crecen…",o:["Sobre los árboles","Bajo el agua","En la arena del mar"],a:0,e:"Son epífitas: se agarran a los árboles sin dañarlos."},
+  {id:"p-monstera",q:"A la monstera le dicen costilla de Adán por…",o:["Sus raíces blancas","Los cortes y agujeros de sus hojas","Su tallo duro"],a:1,e:"Sus hojas grandes tienen cortes que recuerdan a costillas."},
+  {id:"p-aloe",q:"¿Dónde guarda el aloe vera su gel?",o:["En sus hojas","En sus flores","En sus raíces"],a:0,e:"El gel está dentro de sus hojas gruesas."},
+  {id:"p-helecho",q:"Los helechos se reproducen por…",o:["Semillas","Esporas","Bulbos"],a:1,e:"Las esporas son los puntitos que aparecen debajo de sus hojas."},
+  {id:"p-nitrogeno",q:"En el abono, el nitrógeno ayuda sobre todo a…",o:["Que crezcan hojas y tallos","Que salgan flores","Que la tierra drene"],a:0,e:"Por eso a la bugambilia no le conviene mucho nitrógeno."},
+  {id:"p-hora",q:"En verano, ¿cuál es la mejor hora para regar?",o:["Al mediodía","Temprano en la mañana o al atardecer","A medianoche siempre"],a:1,e:"Con menos calor, el agua no se evapora tan rápido."},
+  {id:"p-inviernolima",q:"En el invierno de Lima las plantas necesitan menos agua porque…",o:["Hay menos sol y más humedad","Llueve todos los días","Duermen todo el día"],a:0,e:"Con la panza de burro, la tierra tarda más en secarse."},
+  {id:"p-luz",q:"Si una planta se estira e inclina hacia la ventana, es porque…",o:["Busca más luz","Tiene frío","Quiere salir"],a:0,e:"Las plantas crecen hacia la luz. Girar la maceta ayuda."},
+  {id:"p-podar",q:"¿Qué es podar?",o:["Cambiar de maceta","Cortar partes para guiar el crecimiento","Regar con abono"],a:1,e:"Una buena poda da plantas más tupidas y con más flores."},
+  {id:"p-jabon",q:"¿Para qué sirve el jabón potásico en las plantas?",o:["Para controlar plagas como pulgones","Para que brillen las hojas","Como abono"],a:0,e:"Es una opción suave contra plagas pequeñas."},
+  {id:"p-cactus",q:"Los cactus son nativos casi todos de…",o:["América","Europa","La Antártida"],a:0,e:"Desde Canadá hasta la Patagonia, incluido Perú."},
+  {id:"p-longeva",q:"¿Cuánto puede vivir una bugambilia bien cuidada?",o:["Un par de meses","Un año","Varias décadas"],a:2,e:"Con cuidados, puede acompañarte muchísimos años."},
+  {id:"p-plato",q:"¿Qué pasa si dejas agua en el plato de la maceta por días?",o:["Las raíces pueden pudrirse","La planta crece más rápido","Nada"],a:0,e:"Además atrae mosquitas y zancudos."}
+];
+const PRACTICA = () => LESSONS.concat(PRACTICA_EXTRA);
+const JUEGO_ESPECIES = ["bugambilia","suculenta","potus","sansevieria","orquidea","helecho"];

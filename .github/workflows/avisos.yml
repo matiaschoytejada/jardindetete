@@ -4,16 +4,21 @@ on:
   schedule:
     - cron: "0 0 * * *"    # 7:00 p. m. en Lima: aviso de la tarde
     - cron: "30 13 * * *"  # 8:30 a. m. en Lima: solo si necesita rescate
+    - cron: "*/15 * * * *" # cada 15 minutos: mensajitos nuevos
   workflow_dispatch:
     inputs:
       modo:
         description: "Qué aviso correr"
         type: choice
         default: prueba
-        options: [prueba, tarde, manana]
+        options: [prueba, tarde, manana, mensajes]
 
 permissions:
   contents: write
+
+concurrency:
+  group: avisos-${{ github.event.schedule || inputs.modo }}
+  cancel-in-progress: false
 
 jobs:
   avisar:
@@ -30,7 +35,7 @@ jobs:
           TZ: America/Lima
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           APP_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
-          MODE: ${{ inputs.modo || (github.event.schedule == '30 13 * * *' && 'manana' || 'tarde') }}
+          MODE: ${{ inputs.modo || (github.event.schedule == '*/15 * * * *' && 'mensajes') || (github.event.schedule == '30 13 * * *' && 'manana') || 'tarde' }}
       # GitHub pausa las tareas programadas tras 60 días sin cambios en el repo.
       # Un latido mensual las mantiene vivas.
       - name: Latido mensual
