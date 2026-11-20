@@ -36,27 +36,31 @@ const estados = plantas.map(p => {
   return { p, max, sinAgua, animo, aguaHoy, plagasToca: !ultPlagas || entre(ultPlagas.fecha, hoy) >= 14 };
 }).sort((a, b) => ORDEN[b.animo] - ORDEN[a.animo] || b.sinAgua - a.sinAgua);
 const peor = estados.find(s => !s.aguaHoy) || estados[0];
-const activoHoy = reg.some(e => entre(e.fecha, hoy) === 0);
+const CUIDADO = ["riego", "revision", "plagas", "abono", "poda", "brotes"];
+const cuid = reg.filter(e => CUIDADO.includes(e.tipo));
+const activoHoy = cuid.some(e => entre(e.fecha, hoy) === 0);
 
-// racha (igual que en la app, con protectores)
-function racha() {
-  const act = new Set(reg.map(e => clave(e.fecha)));
+// rachas (igual que en la app, con protectores): la del jardín es de todos; la de aprender, de cada uno
+function racha(lista, prot) {
+  const act = new Set(lista.map(e => clave(e.fecha)));
   if (!act.size) return 0;
-  const prot = compras.filter(c => c.item === "protector").map(c => dia(c.fecha));
+  prot = prot.map(c => dia(c.fecha));
   let s = 0, usados = 0;
-  for (let d = dia(reg[reg.length - 1].fecha); d < dia(hoy); d.setDate(d.getDate() + 1)) {
+  for (let d = dia(lista[lista.length - 1].fecha); d < dia(hoy); d.setDate(d.getDate() + 1)) {
     if (act.has(clave(d))) s++;
     else if (s > 0 && prot.filter(p => p <= d).length - usados > 0) usados++;
     else s = 0;
   }
   return s;
 }
-const r = racha();
+const aprendeDe = uid => reg.filter(e => (e.tipo === "leccion" || e.tipo === "dato") && e.quien === uid);
+const rachaA = uid => racha(aprendeDe(uid), compras.filter(c => c.item === "protector-aprendizaje" && c.quien === uid));
+const r = racha(cuid, compras.filter(c => c.item === "protector"));
 const plagasDomingo = hoy.getDay() === 0 && estados.some(s => s.plagasToca);
 const sinAguaTxt = n => n >= 99 ? "mucho tiempo" : `${n} días`;
 
 // arma el aviso con el apodo de quien lo recibe
-function aviso(c) {
+function aviso(c, uid) {
   const n = peor.p.nombre, yo = n === "Ciruquis" ? "Ciruquis" : n;
   if (MODO === "prueba") return { title: `¡Hola, ${c}! Soy Ciruquis 💜`, body: "Así te voy a avisar cuando el jardín te necesite.", tag: "prueba" };
   if (MODO === "manana") {
@@ -69,17 +73,22 @@ function aviso(c) {
     return { title: n === "Ciruquis" ? `${c}, ya me va dando sed…` : `${c}, a ${n} ya le va dando sed…`, body: "Hazle la prueba del dedo hoy, porfa. Tu racha también te lo agradece.", tag: "agua" };
   if (!activoHoy && r > 0)
     return { title: `¡Tu racha de ${r} día${r === 1 ? "" : "s"} está en peligro! 🔥`, body: plagasDomingo ? `Hoy toca patrulla de plagas. Con eso la salvas, ${c}.` : `Una lección o el dato curioso de hoy la salvan, ${c}.`, tag: "racha" };
+  const aprendioHoy = aprendeDe(uid).some(e => entre(e.fecha, hoy) === 0), ra = rachaA(uid);
+  if (!aprendioHoy && ra > 0)
+    return { title: `Tu racha de aprendizaje: ${ra} día${ra === 1 ? "" : "s"} 📚`, body: `No la pierdas, ${c}. La lección de hoy toma un minuto.`, tag: "aprende" };
   if (!activoHoy)
-    return { title: `Ciruquis te extraña, ${c} 🧶`, body: "Hoy hay un dato curioso nuevo esperándote. ¿Vienes un ratito?", tag: "racha" };
+    return { title: `Ciruquis te extraña, ${c} 🧶`, body: "Un cuidado de hoy enciende la racha del jardín.", tag: "racha" };
+  if (!aprendioHoy)
+    return { title: `${c}, hay un dato curioso nuevo 💡`, body: "Ábrelo en Aprender y súmalo a tu álbum.", tag: "aprende" };
   return null;
 }
 const apodoDe = uid => { const p = personas[uid] || {}; return (p.apodo || "").trim() || (p.nombre || "").split(" ")[0] || "Teté"; };
 
-console.log({ MODO, temporada: temp.k, plantas: estados.map(e => `${e.p.nombre}:${e.animo}(${e.sinAgua}d)`), activoHoy, racha: r });
+console.log({ MODO, temporada: temp.k, plantas: estados.map(e => `${e.p.nombre}:${e.animo}(${e.sinAgua}d)`), activoHoy, rachaJardin: r });
 
 const toks = await db.collection("tokens").get();
 if (toks.empty) { console.log("No hay celulares registrados todavía."); process.exit(0); }
-const envios = toks.docs.map(t => ({ t, a: aviso(apodoDe(t.data().uid)) })).filter(x => x.a);
+const envios = toks.docs.map(t => ({ t, a: aviso(apodoDe(t.data().uid), t.data().uid) })).filter(x => x.a);
 if (!envios.length) { console.log("Hoy no hace falta avisar."); process.exit(0); }
 const res = await admin.messaging().sendEach(envios.map(({ t, a }) => ({
   token: t.id,

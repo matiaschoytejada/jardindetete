@@ -15,7 +15,7 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="app.css?v=5">
+<link rel="stylesheet" href="app.css?v=7">
 </head>
 <body>
 
@@ -72,6 +72,7 @@
 
     <div class="sec-h"><h2>Misiones de hoy</h2><span class="sec-note" id="missionCount"></span></div>
     <div class="missions" id="missions"></div>
+    <div id="learnLink"></div>
 
     <div class="sec-h"><h2 id="tipsTitle">Cómo cuidarla</h2></div>
     <ul class="tips" id="tips"></ul>
@@ -79,7 +80,11 @@
 
   <!-- APRENDER -->
   <section class="view" data-view="aprender" aria-label="Aprender" hidden>
-    <div class="page-h"><h1>Aprender</h1><p>Una lección y un dato curioso cada día.</p></div>
+    <div class="page-h"><h1>Aprender</h1><p>Tu espacio para aprender. Lo que ganas aquí es tuyo.</p></div>
+    <div id="learnTop"></div>
+    <div class="sec-h"><h2>Para hoy</h2><span class="sec-note coin-note" id="learnCoins"></span></div>
+    <div class="missions" id="learnToday"></div>
+    <div class="sec-h"><h2>Tu camino</h2></div>
     <div id="course"></div>
     <div class="sec-h"><h2>Álbum de datos curiosos</h2><span class="sec-note" id="albumCount"></span></div>
     <div class="album" id="album"></div>
@@ -87,25 +92,14 @@
 
   <!-- PREMIOS -->
   <section class="view" data-view="premios" aria-label="Premios" hidden>
-    <div class="page-h"><h1>Premios</h1><p>Tu racha, tus medallas y la tienda de Ciruquis.</p></div>
-    <div class="streak" id="streakCard">
-      <div class="streak-top">
-        <div class="flame" id="flame"></div>
-        <div class="streak-txt"><div class="snum" id="snum">0</div><div class="slabel" id="slabel">días de racha</div></div>
-      </div>
-      <p class="smsg" id="smsg"></p>
-      <div class="week" id="week"></div>
-      <div class="hitos" id="hitos"></div>
-    </div>
-    <div class="sec-h"><h2>Medallas</h2><span class="sec-note" id="badgeCount"></span></div>
-    <div class="badges" id="badges"></div>
-    <div class="sec-h" id="tiendaH"><h2>Tienda de Ciruquis</h2><span class="sec-note coin-note" id="saldoNote"></span></div>
-    <div class="shop" id="shop"></div>
+    <div class="page-h"><h1>Premios</h1><p id="premiosSub"></p></div>
+    <div class="seg big" id="premiosSeg" role="tablist" aria-label="Ver premios de"></div>
+    <div class="view-body" id="premiosBody"></div>
   </section>
 
   <!-- DIARIO -->
   <section class="view" data-view="diario" aria-label="Diario" hidden>
-    <div class="page-h"><h1>Diario</h1><p>Todo lo que han hecho por el jardín.</p></div>
+    <div class="page-h"><h1>Diario</h1><p>Lo que han hecho por el jardín, y quién lo hizo.</p></div>
     <div class="team" id="team"></div>
     <div class="filters" id="filters" role="tablist"></div>
     <ul class="log" id="log"><li class="empty">Cargando…</li></ul>
@@ -116,6 +110,7 @@
     <div class="profile-head">
       <button class="avatar-xl" id="avatarBtn" type="button" aria-label="Cambiar foto"><span id="avatarXL"></span><i class="cam" aria-hidden="true"></i></button>
       <h1 id="profName">Teté</h1>
+      <span class="titulo-pill" id="profTitulo" hidden></span>
       <p id="profSub"></p>
       <button class="btn alt small" id="editProfile" type="button">Editar perfil</button>
     </div>
@@ -221,9 +216,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
-<script src="config.js?v=5"></script>
-<script src="especies.js?v=5"></script>
-<script src="contenido.js?v=5"></script>
-<script src="app.js?v=5"></script>
+<script src="config.js?v=7"></script>
+<script src="especies.js?v=7"></script>
+<script src="contenido.js?v=7"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>

@@ -22,19 +22,45 @@ const MON = e => ({riego:10,revision:5,abono:15,poda:12,plagas:8,brotes:10,dato:
 const HITOS = [[3,10],[7,25],[14,40],[30,100],[60,150],[100,300]];
 const TIER_MON = [15,30,60];
 
-const BADGES = [
-  {k:"riego", name:"Regadora", t:[3,10,30], icon:"riego", count:E=>E.filter(e=>e.tipo==="riego").length},
-  {k:"revision", name:"Dedito verde", t:[3,10,25], icon:"revision", count:E=>E.filter(e=>e.tipo==="revision"||e.tipo==="riego").length},
-  {k:"plagas", name:"Detective de plagas", t:[2,6,15], icon:"plagas", count:E=>E.filter(e=>e.tipo==="plagas").length},
-  {k:"abono", name:"Chef de Ciruquis", t:[1,5,12], icon:"abono", count:E=>E.filter(e=>e.tipo==="abono").length},
-  {k:"poda", name:"Tijeras de oro", t:[1,3,8], icon:"poda", count:E=>E.filter(e=>e.tipo==="poda").length},
-  {k:"leccion", name:"Sabia como Ciruquis", t:[3,10,30], icon:"leccion", count:E=>E.filter(e=>e.tipo==="leccion"&&e.ok!==false).length},
-  {k:"dato", name:"Coleccionista curiosa", t:[5,12,16], icon:"dato", count:E=>new Set(E.filter(e=>e.tipo==="dato").map(e=>e.nota)).size},
-  {k:"racha", name:"Llama eterna", t:[7,30,100], icon:"racha", count:()=>R.best}
+/* Cuidado = familia; aprendizaje = cada persona */
+const CUIDADO = ["riego","revision","plagas","abono","poda","brotes"];
+const APRENDE = ["leccion","dato"];
+const HITOS_A = [[3,10],[7,20],[14,35],[30,80],[60,120]];
+/* c = {F: cuidados de todos, M: mis entradas, MC: mis cuidados, RF: racha familiar, RA: mi racha de aprendizaje} */
+const BADGES_F = [
+  {k:"riego", name:"Regadores del balcón", t:[3,10,30], icon:"riego", count:c=>c.F.filter(e=>e.tipo==="riego").length},
+  {k:"plagas", name:"Detectives de plagas", t:[2,6,15], icon:"plagas", count:c=>c.F.filter(e=>e.tipo==="plagas").length},
+  {k:"abono", name:"Chefs del jardín", t:[1,5,12], icon:"abono", count:c=>c.F.filter(e=>e.tipo==="abono").length},
+  {k:"poda", name:"Tijeras de oro", t:[1,3,8], icon:"poda", count:c=>c.F.filter(e=>e.tipo==="poda").length},
+  {k:"racha", name:"Llama eterna", t:[7,30,100], icon:"racha", count:c=>c.RF.best}
+];
+const BADGES_P = [
+  {k:"leccion", name:"Sabia como Ciruquis", t:[3,10,30], icon:"leccion", count:c=>new Set(c.M.filter(e=>e.tipo==="leccion"&&e.ok!==false).map(e=>e.nota)).size},
+  {k:"dato", name:"Coleccionista curiosa", t:[5,12,16], icon:"dato", count:c=>new Set(c.M.filter(e=>e.tipo==="dato").map(e=>e.nota)).size},
+  {k:"constante", name:"Mente constante", t:[3,7,30], icon:"aprender", count:c=>c.RA.best},
+  {k:"manoverde", name:"Mano verde", t:[5,20,60], icon:"maceta", count:c=>c.MC.length, bolsa:"familia"}
+];
+/* Tienda personal: se paga con lo que cada uno aprende */
+const MARCO_SVG = {
+  flores:'<svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="14" fill="none" stroke="#E5338F" stroke-width="4"/>'+[0,72,144,216,288].map(a=>`<g transform="rotate(${a} 20 20)"><circle cx="20" cy="5" r="4" fill="#F7A8CF"/><circle cx="20" cy="5" r="1.6" fill="#FFF8E6"/></g>`).join("")+'</svg>',
+  tejido:'<svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="15" fill="none" stroke="#7A2457" stroke-width="5"/><circle cx="20" cy="20" r="15" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="2" stroke-dasharray="3 3"/></svg>',
+  dorado:'<svg viewBox="0 0 40 40"><defs><linearGradient id="gd" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFE38A"/><stop offset=".5" stop-color="#D9A400"/><stop offset="1" stop-color="#FFF2B8"/></linearGradient></defs><circle cx="20" cy="20" r="15" fill="none" stroke="url(#gd)" stroke-width="5"/><path d="M20 1l2 4h-4z" fill="#D9A400"/></svg>',
+  hojas:'<svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="14" fill="none" stroke="#2F7A4F" stroke-width="3"/>'+[20,80,140,200,260,320].map(a=>`<ellipse cx="20" cy="5.5" rx="2.6" ry="4.5" fill="#4FB377" transform="rotate(${a} 20 20)"/>`).join("")+'</svg>'
+};
+const SHOP_P = [
+  {id:"marco-flores", tipo:"marco", valor:"flores", name:"Marco de bugambilias", price:25, desc:"Flores fucsias alrededor de tu foto.", svg:MARCO_SVG.flores},
+  {id:"marco-hojas", tipo:"marco", valor:"hojas", name:"Marco de hojitas", price:25, desc:"Una coronita verde para tu foto.", svg:MARCO_SVG.hojas},
+  {id:"marco-tejido", tipo:"marco", valor:"tejido", name:"Marco tejido", price:40, desc:"Tejido morado, como las chompas de Ciruquis.", svg:MARCO_SVG.tejido},
+  {id:"marco-dorado", tipo:"marco", valor:"dorado", name:"Marco dorado", price:80, desc:"Para quien aprende sin parar.", svg:MARCO_SVG.dorado},
+  {id:"titulo-bugambilias", tipo:"titulo", valor:"Experta en bugambilias", name:"Título: Experta en bugambilias", price:30, desc:"Aparece bajo tu nombre en el perfil."},
+  {id:"titulo-abogada", tipo:"titulo", valor:"Abogada de las plantas", name:"Título: Abogada de las plantas", price:30, desc:"Defiende sus derechos a la luz y al agua."},
+  {id:"titulo-curiosa", tipo:"titulo", valor:"Curiosa sin remedio", name:"Título: Curiosa sin remedio", price:20, desc:"Para quien no se pierde un dato."},
+  {id:"titulo-sabia", tipo:"titulo", valor:"Sabia del jardín", name:"Título: Sabia del jardín", price:60, desc:"Como la abuelita Ciruquis."},
+  {id:"protector-aprendizaje", tipo:"protector", name:"Protector de aprendizaje", price:20, desc:"Salva tu racha de aprendizaje un día. Máximo 2.", consumible:true}
 ];
 
 const SHOP = [
-  {id:"protector", name:"Protector de racha", price:30, desc:"Salva la racha si un día no entran. Máximo 2.", consumible:true,
+  {id:"protector", name:"Protector de racha familiar", price:30, desc:"Salva la racha del jardín si un día nadie cuida. Máximo 2.", consumible:true,
    svg:'<svg viewBox="0 0 40 40"><path d="M20 3l14 5v10c0 9-6 15-14 19C12 33 6 27 6 18V8z" fill="var(--ice-soft)" stroke="var(--ice)" stroke-width="2.5"/><path d="M20 11c.8 3 4 4 4 8a4 4 0 0 1-8 0c0-2 1-3 1.8-4 .2 1.2.8 2 1.8 2.3C19 14.5 20.3 13 20 11z" fill="var(--ice)"/></svg>'},
   {id:"rosada", name:"Chompa rosada", price:40, desc:"Tejida con lana rosada, como las que hacía para la familia.", grupo:"color",
    svg:'<svg viewBox="0 0 40 40"><path d="M14 6h12l10 6-4 8-4-2v18H12V18l-4 2-4-8z" fill="#E58AB3"/><path d="M15 6q5 5 10 0" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="2"/></svg>'},
@@ -101,3 +127,11 @@ Object.assign(ICON, {
   tema:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20zm0 2.2v15.6a7.8 7.8 0 0 0 0-15.6z" opacity=".35"/><path d="M12 2a10 10 0 0 0 0 20V2z"/></svg>',
   maceta:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 11c0-4 2-7 7-7 0 4-2 7-7 7zm0 0C9 11 5 9 5 4c4 0 7 3 7 7zM5 12h14l-2 9H7z"/></svg>'
 });
+
+/* Monedas: la de la familia es fucsia con una bugambilia; las personales son doradas,
+   con Popeye (gatito) para Esthef y Zoe (perrita) para Matias. */
+const MONEDA = {
+  familia:'<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#9E1462"/><circle cx="12" cy="12" r="9.2" fill="#D6247F"/>'+[0,120,240].map(r=>`<ellipse cx="12" cy="8.3" rx="2.6" ry="3.8" transform="rotate(${r} 12 12)" fill="#FFE3F0"/>`).join("")+'<circle cx="12" cy="12" r="1.5" fill="#F7C948"/></svg>',
+  popeye:'<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#B57D00"/><circle cx="12" cy="12" r="9.2" fill="#F2B21B"/><path d="M6.6 9.6 L7.4 4.8 L10.3 7.6 Q12 7.1 13.7 7.6 L16.6 4.8 L17.4 9.6 Q18.3 11.4 17.6 13.6 Q16.2 17.4 12 17.4 Q7.8 17.4 6.4 13.6 Q5.7 11.4 6.6 9.6Z" fill="#FFF3C4"/><circle cx="9.6" cy="11.6" r="1.1" fill="#6B4500"/><circle cx="14.4" cy="11.6" r="1.1" fill="#6B4500"/><path d="M11.2 13.4 L12.8 13.4 L12 14.3Z" fill="#E5338F"/><path d="M12 14.3 Q11 15.6 10 15 M12 14.3 Q13 15.6 14 15 M4.8 12.8 L8 13.4 M4.9 14.6 L8 14.2 M19.2 12.8 L16 13.4 M19.1 14.6 L16 14.2" stroke="#6B4500" stroke-width=".8" fill="none" stroke-linecap="round"/></svg>',
+  zoe:'<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#B57D00"/><circle cx="12" cy="12" r="9.2" fill="#F2B21B"/><path d="M8 8.6 Q12 6.4 16 8.6 Q17.6 10.4 17.2 13.4 Q16.4 17.6 12 17.6 Q7.6 17.6 6.8 13.4 Q6.4 10.4 8 8.6Z" fill="#FFF3C4"/><path d="M8.2 8.4 Q5.2 7.6 5 10.8 Q5 13.6 7 14.4 Q7.6 11 8.2 8.4Z" fill="#9C6B12"/><path d="M15.8 8.4 Q18.8 7.6 19 10.8 Q19 13.6 17 14.4 Q16.4 11 15.8 8.4Z" fill="#9C6B12"/><circle cx="9.9" cy="11.6" r="1.1" fill="#6B4500"/><circle cx="14.1" cy="11.6" r="1.1" fill="#6B4500"/><ellipse cx="12" cy="13.9" rx="1.5" ry="1.1" fill="#4A2F00"/><path d="M12 15 L12 15.8 M10.6 16 Q12 16.9 13.4 16" stroke="#6B4500" stroke-width=".8" fill="none" stroke-linecap="round"/><path d="M12 15.9 Q12.4 17.2 12.9 16.2" fill="#E5338F"/></svg>'
+};
