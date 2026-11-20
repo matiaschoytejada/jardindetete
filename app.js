@@ -561,6 +561,7 @@ function renderPerfil(saldo){
   if(installEvt&&!esStandalone()) fila2(ICON.instalar,"Instalar en el celular","Queda en tu pantalla de inicio como cualquier app",()=>instalar());
   fila2(ICON.libro,"Guía de cuidados de la bugambilia","Se abre en Claude","https://claude.ai/artifact/Hnr58J6AW1dNxvcGsDxsVa");
   fila2(ICON.salir,"Cerrar sesión","",()=>salir());
+  $("version").textContent="Versión "+VERSION;
 }
 
 /* ---------- apariencia ---------- */
@@ -665,7 +666,13 @@ const auth=firebase.auth();
 db=firebase.firestore();
 db.enablePersistence({synchronizeTabs:true}).catch(()=>{});
 try{ if(firebase.messaging.isSupported()) messaging=firebase.messaging(); }catch(_){ messaging=null; }
-if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js").then(r=>{ swReg=r; if(miId){ registrarToken(false); render(); } }).catch(e=>console.warn("sw",e)); }
+const VERSION="2026.11.19 · v5";
+if("serviceWorker" in navigator){
+  const habia=!!navigator.serviceWorker.controller; let recargado=false;
+  navigator.serviceWorker.addEventListener("controllerchange",()=>{ if(habia&&!recargado){ recargado=true; location.reload(); } });
+  navigator.serviceWorker.register("sw.js",{updateViaCache:"none"}).then(r=>{ swReg=r; r.update().catch(()=>{}); if(miId){ registrarToken(false); render(); } }).catch(e=>console.warn("sw",e));
+  document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"&&swReg) swReg.update().catch(()=>{}); });
+}
 if(messaging) messaging.onMessage(p=>{ const d=p.data||{}; toast(d.body||d.title||"Ciruquis te habla"); });
 setInterval(()=>{ moverReloj(); },60000);
 irA(location.hash.slice(1)||"inicio",{scroll:false});

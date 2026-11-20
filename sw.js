@@ -4,7 +4,7 @@ importScripts(
   "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js",
   "config.js"
 );
-const CACHE = "ciruquis-v4";
+const CACHE = "ciruquis-v5";
 const BASE = self.registration.scope;
 const SHELL = ["", "index.html", "app.css", "app.js", "contenido.js", "especies.js", "config.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/badge-96.png"];
 
@@ -23,7 +23,7 @@ self.addEventListener("fetch", e => {
   const fuentes = /fonts\.(googleapis|gstatic)\.com|gstatic\.com\/firebasejs/.test(url.href);
   if (!propio && !fuentes) return;
   e.respondWith(
-    fetch(req).then(res => {
+    fetch(req, propio ? { cache: "no-cache" } : undefined).then(res => {
       if (res.ok) { const copia = res.clone(); caches.open(CACHE).then(c => c.put(req, copia)); }
       return res;
     }).catch(() => caches.match(req).then(r => r || caches.match(BASE + "index.html")))
