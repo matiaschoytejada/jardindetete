@@ -17,8 +17,16 @@ for (const p of pend) {
   if ((await ref.get()).exists) { console.log(`Ya estaba: ${p.id}`); continue; }
   const dia = p.fecha.slice(0, 10);
   const mismos = (await db.collection("registro").where("tipo", "==", p.tipo).get()).docs
-    .map(d => d.data()).filter(d => (d.plantaId || "ciruquis") === p.plantaId && new Date(d.fecha).toLocaleDateString("en-CA", { timeZone: "America/Lima" }) === dia);
-  if (mismos.length) { console.log(`Ya había un ${p.tipo} el ${dia}; no lo duplico.`); continue; }
+    .map(d => ({ ref: d.ref, ...d.data() })).filter(d => (d.plantaId || "ciruquis") === p.plantaId && new Date(d.fecha).toLocaleDateString("en-CA", { timeZone: "America/Lima" }) === dia);
+  if (mismos.length) {
+    const nom = uid => { const g = gente.find(x => x.id === uid); return g ? (g.apodo || g.nombre || uid) : "Claude/sin nombre"; };
+    console.log(`Ya había ${mismos.length} ${p.tipo} el ${dia}: ` + mismos.map(m => `${nom(m.quien)} a las ${new Date(m.fecha).toLocaleTimeString("es-PE", { timeZone: "America/Lima" })}`).join("; "));
+    if (mismos.some(m => m.quien === quien.id)) { console.log("Ya está a su nombre. No cambio nada."); continue; }
+    const m = mismos[0];
+    await m.ref.update({ quien: quien.id, anotadoPor: m.quien || (anota ? anota.id : null) });
+    console.log(`Pasado a nombre de ${p.persona}: el riego que había anotado ${nom(m.quien)}.`);
+    continue;
+  }
   const doc = { tipo: p.tipo, nota: p.nota || "", fecha: new Date(p.fecha).toISOString(), quien: quien.id, plantaId: p.plantaId };
   if (anota && anota.id !== quien.id) doc.anotadoPor = anota.id;
   await ref.set(doc);

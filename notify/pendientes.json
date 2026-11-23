@@ -1,3 +1,12 @@
 [
-  {"id": "riego-ciruquis-2026-11-20-tete", "persona": "Teté", "tipo": "riego", "plantaId": "ciruquis", "fecha": "2026-11-20T12:00:00-05:00", "nota": "", "anotadoPor": "Matias"}
+  {
+    "id": "riego-ciruquis-2026-11-20-tete",
+    "persona": "Teté",
+    "tipo": "riego",
+    "plantaId": "ciruquis",
+    "fecha": "2026-11-20T12:00:00-05:00",
+    "nota": "",
+    "anotadoPor": "Matias",
+    "revision": 2
+  }
 ]
