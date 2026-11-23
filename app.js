@@ -376,6 +376,44 @@ function renderCarta(){
   r.disabled=false; h.disabled=false; c.append(fila(h,r)); box.append(c);
 }
 
+/* ---------- anotar un cuidado a nombre de alguien ---------- */
+const TIPOS_ANOTAR=[["riego","Riego"],["revision","Tierra revisada (aún húmeda)"],["plagas","Patrulla de plagas"],["abono","Abono"],["poda","Poda"],["brotes","Vio brotes nuevos"]];
+function formAnotar(pre={}){
+  const otra=otraPersona();
+  const d={tipo:pre.tipo||"riego", quien:pre.quien||otra||miId, cuando:0, fecha:"", plantaId:pre.plantaId||sel};
+  abrirHoja("Anotar un cuidado", body=>{
+    const chips=(opts,key,onPick)=>{ const w=el("div","chips"); opts.forEach(([v,n,html])=>{ const b=el("button","fchip"+(d[key]===v?" on":"")); b.type="button"; b.innerHTML=html||esc(n);
+      b.onclick=()=>{ vibrar(); d[key]=v; w.querySelectorAll(".fchip").forEach(x=>x.classList.remove("on")); b.classList.add("on"); onPick&&onPick(v); }; w.append(b); }); return w; };
+    const f1=el("div","field","<label>¿Qué hicieron?</label>"); f1.append(chips(TIPOS_ANOTAR,"tipo"));
+    const gente=[...new Set([miId,...Object.keys(personas)])].filter(Boolean);
+    const f2=el("div","field","<label>¿Quién lo hizo?</label>"); f2.append(chips(gente.map(u=>[u,nombreDe(u),`${avatarHTML(personas[u],24,false)}<span>${esc(u===miId?nombreDe(u)+" (yo)":nombreDe(u))}</span>`]),"quien"));
+    const f3=el("div","field","<label>¿Cuándo?</label>"); const fe=el("input","input"); fe.type="date"; fe.max=new Date().toISOString().slice(0,10); fe.hidden=true;
+    const nombresDia=n=>{ if(n===0) return "Hoy"; if(n===1) return "Ayer"; const x=new Date(); x.setDate(x.getDate()-n); return x.toLocaleDateString("es-PE",{weekday:"long"}).replace(/^./,c=>c.toUpperCase()); };
+    f3.append(chips([[0,nombresDia(0)],[1,nombresDia(1)],[2,nombresDia(2)],[3,nombresDia(3)],[-1,"Otro día"]],"cuando",v=>{ fe.hidden=v!==-1; if(v===-1) fe.focus(); }),fe);
+    body.append(f1,f2,f3);
+    if(plantas.length>1){ const f4=el("div","field","<label>¿A qué planta?</label>"); f4.append(chips(plantas.map(p=>[p.id,p.nombre,`<span class="mini18">${miniDe(p)}</span><span>${esc(p.nombre)}</span>`]),"plantaId")); body.append(f4); }
+    const f5=el("div","field",`<label for="anNota">Nota</label><input class="input" id="anNota" maxlength="140" placeholder="Opcional">`); body.append(f5);
+    const nota=el("p","sec-desc"); nota.style.margin="0"; body.append(nota);
+    const upd=()=>{ nota.textContent = d.quien===miId ? "Queda a tu nombre." : `Queda a nombre de ${nombreDe(d.quien)}: el cuidado y su medalla Mano verde cuentan para ${nombreDe(d.quien)}, y las monedas van a la familia.`; };
+    body.querySelectorAll(".fchip").forEach(b=>b.addEventListener("click",upd)); upd();
+    const g=boton("Anotar","plum wide",async(e,b)=>{
+      let fecha;
+      if(d.cuando===-1){ if(!fe.value){ toast("Elige el día"); return; } fecha=new Date(fe.value+"T12:00:00"); }
+      else { fecha=new Date(); if(d.cuando>0){ fecha.setDate(fecha.getDate()-d.cuando); fecha.setHours(12,0,0,0); } }
+      if(fecha>new Date()){ toast("Esa fecha todavía no llega"); return; }
+      b.disabled=true;
+      const pl=plantas.find(p=>p.id===d.plantaId)||planta(), tipo=d.tipo==="revision"?"revision":d.tipo;
+      const ent={tipo,nota:d.tipo==="revision"?"humeda":(body.querySelector("#anNota").value.trim()),fecha:fecha.toISOString(),quien:d.quien,plantaId:pl.id};
+      if(d.tipo==="revision"&&body.querySelector("#anNota").value.trim()) ent.comentario=body.querySelector("#anNota").value.trim();
+      if(d.quien!==miId) ent.anotadoPor=miId;
+      try{ await db.collection("registro").add(ent); cerrarHoja(); if(tipo==="riego") gotas(); else confeti(); monedasFx(false);
+        toast(`+${MON(ent)} para la familia · ${TXT[tipo]} anotado${d.quien!==miId?` a nombre de ${nombreDe(d.quien)}`:""}`,"coin"); }
+      catch(_){ toast("No se pudo anotar. Revisa tu conexión."); b.disabled=false; }
+    });
+    body.append(g);
+  });
+}
+
 /* ---------- fotos de seguimiento ---------- */
 const fotosDe = id => fotos.filter(f=>(f.plantaId||"ciruquis")===id);
 let fotoPlanta=null;
@@ -587,6 +625,7 @@ function renderInicio(){
   } else {
     const c=card({icon:"revision",cls:st.mood==="sed"?"":"pink",title:"Prueba del dedo",sub:"Mete el dedo hasta pasar la primera articulación (3–4 cm). ¿Cómo está la tierra?",tag:st.mood==="sed"?"+5 / +10":"¡Urgente!",tagCls:st.mood==="sed"?"coin":"due"});
     c.append(fila(boton("Seca: la regué","",()=>guardar("riego","")),boton("Aún húmeda","alt",()=>guardar("revision","humeda"))));
+    const otro=boton(otraPersona()?`Lo hizo ${nombreDe(otraPersona())}`:"Lo hizo otra persona","ghost",()=>formAnotar({tipo:"riego",plantaId:p.id})); c.append(otro);
     add(c,false);
   }
   const uf=fotosDe(p.id)[0], df=uf?daysBetween(uf.fecha,hoy):null, ef=hoyDe(e=>e.tipo==="foto");
@@ -793,6 +832,7 @@ function renderDiario(){
     m.innerHTML=(k==="_"?`<span class="av" style="width:42px;height:42px;font-size:18px">C</span>`:avatarHTML(personas[k],42))+`<div class="mi"><strong>${esc(k==="_"?"Desde el chat":nombreDe(k))}</strong><span>${cnt[k]} ${cnt[k]===1?"cuidado":"cuidados"}</span><small class="aporte">${coinFam()}+${tot[k]} para la familia</small></div>`; tm.append(m); });
   const fl=$("filters"); fl.innerHTML="";
   [["todas","Todas"],...plantas.map(p=>[p.id,p.nombre])].forEach(([id,n])=>{ const b=el("button","fchip"+(filtro===id?" on":"")); b.type="button"; b.textContent=n; b.onclick=()=>{ vibrar(); filtro=id; mostrar=12; renderDiario(); }; fl.append(b); });
+  const an=$("anotarBtn"); if(an&&!an.onclick) an.onclick=()=>{ vibrar(); formAnotar({}); };
   const ul=$("log"); ul.innerHTML="";
   const lista=cuid.filter(e=>filtro==="todas"||plantaDe(e)===filtro);
   if(!lista.length){ ul.innerHTML='<li class="empty">Todavía no hay cuidados aquí. Completa una misión y aparecerá.</li>'; return; }
@@ -800,7 +840,7 @@ function renderDiario(){
     const li=el("li"), f=new Date(e.fecha), pl=plantas.find(p=>p.id===plantaDe(e));
     li.innerHTML=`<div class="ico">${ICON[e.tipo]||ICON.nota}</div><div class="txt"><div class="t"></div><div class="m">${e.quien&&personas[e.quien]?avatarHTML(personas[e.quien],18,false):""}<span class="mt"></span></div></div><span class="x">+${MON(e)}</span>`;
     li.querySelector(".t").textContent=(TXT[e.tipo]||"Nota")+(pl&&plantas.length>1&&!["leccion","dato"].includes(e.tipo)?` · ${pl.nombre}`:"");
-    li.querySelector(".m .mt").textContent=f.toLocaleDateString("es-PE",{weekday:"short",day:"numeric",month:"short"})+" · "+nombreDe(e.quien);
+    li.querySelector(".m .mt").textContent=f.toLocaleDateString("es-PE",{weekday:"short",day:"numeric",month:"short"})+" · "+nombreDe(e.quien)+(e.anotadoPor&&e.anotadoPor!==e.quien?` (anotó ${nombreDe(e.anotadoPor)})`:"");
     const extra=e.tipo==="dato"?(DATOS.find(d=>d.id===e.nota)||{}).t:e.tipo==="revision"&&e.nota==="humeda"?"Tierra aún húmeda":e.tipo==="leccion"?(e.ok===false?"Respuesta para repasar":"Respuesta correcta"):(e.nota||"");
     if(extra){ const n=el("div","n"); n.textContent=extra; li.querySelector(".txt").append(n); }
     if(puedeEscribir){ const d=el("button","del"); d.type="button"; d.textContent="Borrar";
@@ -948,7 +988,7 @@ const auth=firebase.auth();
 db=firebase.firestore();
 db.enablePersistence({synchronizeTabs:true}).catch(()=>{});
 try{ if(firebase.messaging.isSupported()) messaging=firebase.messaging(); }catch(_){ messaging=null; }
-const VERSION="2026.11.20 · v9";
+const VERSION="2026.11.23 · v10";
 if("serviceWorker" in navigator){
   const habia=!!navigator.serviceWorker.controller; let recargado=false;
   navigator.serviceWorker.addEventListener("controllerchange",()=>{ if(habia&&!recargado){ recargado=true; location.reload(); } });
